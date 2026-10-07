@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"c:/Users/Lopes/Documents/sistema de agendamento/.claude/sdd/features\")",
+      "Bash(sed -n '/^# BRAINSTORM: Barbershop Scheduling API/,$p' C:/Users/Lopes/.claude/plans/estou-pensando-desenvolver-uma-quiet-engelbart.md)",
+      "Read(//c/Users/Lopes/.claude/plugins/cache/agentspec/agentspec/3.6.0/kb/python/patterns/**)",
+      "Bash(pip --version)",
+      "Bash(mkdir -p app/repositories app/services app/routers scripts tests .claude/sdd/reports)",
+      "Bash(touch app/__init__.py app/repositories/__init__.py app/services/__init__.py app/routers/__init__.py scripts/__init__.py tests/__init__.py)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/python -m pip install -q -r requirements.txt ruff)",
+      "Bash(.venv/Scripts/python -c \"import fastapi,sqlalchemy,pydantic;print\\(fastapi.__version__,sqlalchemy.__version__,pydantic.__version__\\)\")",
+      "Bash(.venv/Scripts/python -c \"from datetime import date;print\\(date\\(2030,1,7\\).weekday\\(\\), date\\(2030,1,6\\).weekday\\(\\), date\\(2030,1,1\\).weekday\\(\\)\\)\")",
+      "Bash(.venv/Scripts/ruff check *)",
+      "Bash(.venv/Scripts/python -c \"from app.main import app; print\\(sorted\\({r.path for r in app.routes if hasattr\\(r,'methods'\\)}\\)\\)\")",
+      "Bash(.venv/Scripts/python -m pytest -x)",
+      "Bash(sed -i 's/^httpx>=0.27$/httpx2>=2.0/' requirements.txt)",
+      "Bash(.venv/Scripts/python -m pip install -q -r requirements.txt)",
+      "Bash(.venv/Scripts/python -m pytest --cov=app --cov-report=term-missing)"
+    ]
+  }
+}

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agendamento de Barbearia</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="conteudo">
+      <h1>Agendamento de Barbearia</h1>
+      <p class="sub">Front-end de teste da API &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden></div>
+
+    <nav class="abas" aria-label="Seções">
+      <button type="button" class="aba ativa" data-aba="agendar">Agendar</button>
+      <button type="button" class="aba" data-aba="agendamentos">Agendamentos</button>
+      <button type="button" class="aba" data-aba="cadastros">Cadastros</button>
+    </nav>
+
+    <section id="aba-agendar" class="painel">
+      <form id="form-horarios" class="grade-form">
+        <label>Cliente
+          <select id="agendar-cliente" required></select>
+        </label>
+        <label>Barbeiro
+          <select id="agendar-barbeiro" required></select>
+        </label>
+        <label>Serviço
+          <select id="agendar-servico" required></select>
+        </label>
+        <label>Data
+          <input id="agendar-data" type="date" required>
+        </label>
+        <button type="submit" class="primario">Ver horários livres</button>
+      </form>
+
+      <h2>Horários livres</h2>
+      <p id="horarios-ajuda" class="ajuda">Escolha barbeiro, serviço e data para ver os horários.</p>
+      <div id="horarios" class="horarios" role="group" aria-label="Horários livres"></div>
+      <div class="confirmar">
+        <p id="horario-escolhido" class="ajuda">Nenhum horário selecionado.</p>
+        <button id="confirmar" type="button" class="primario" disabled>Confirmar agendamento</button>
+      </div>
+
+      <details class="teste-erros">
+        <summary>Testar erros do servidor (409 e 422)</summary>
+        <p class="ajuda">Envia o agendamento direto para o horário informado, sem passar pela lista de horários livres. Use para forçar um conflito, um horário fora da janela do barbeiro ou no passado.</p>
+        <form id="form-manual" class="grade-form">
+          <label>Início
+            <input id="manual-inicio" type="datetime-local" required>
+          </label>
+          <button type="submit">Agendar neste horário</button>
+        </form>
+      </details>
+    </section>
+
+    <section id="aba-agendamentos" class="painel" hidden>
+      <form id="form-filtro" class="grade-form">
+        <label>Barbeiro
+          <select id="filtro-barbeiro"></select>
+        </label>
+        <label>Data
+          <input id="filtro-data" type="date">
+        </label>
+        <button type="submit">Filtrar</button>
+        <button type="button" id="limpar-filtro">Limpar</button>
+      </form>
+      <div class="tabela-rolagem">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Início</th><th>Fim</th><th>Cliente</th><th>Barbeiro</th><th>Serviço</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="lista-agendamentos"></tbody>
+        </table>
+      </div>
+      <p id="sem-agendamentos" class="ajuda" hidden>Nenhum agendamento encontrado.</p>
+    </section>
+
+    <section id="aba-cadastros" class="painel" hidden>
+      <div class="exemplo">
+        <p>Sem dados ainda? Crie 1 cliente, 2 barbeiros, 3 serviços e janelas de segunda a sábado (09:00-18:00).</p>
+        <button id="criar-exemplo" type="button" class="primario">Criar dados de exemplo</button>
+      </div>
+
+      <div class="cartoes">
+        <form id="form-cliente" class="cartao">
+          <h2>Novo cliente</h2>
+          <label>Nome <input name="nome" required minlength="2" maxlength="100"></label>
+          <label>E-mail <input name="email" type="email" required></label>
+          <label>Telefone <input name="telefone" required minlength="8" maxlength="20"></label>
+          <button type="submit">Cadastrar</button>
+        </form>
+
+        <form id="form-barbeiro" class="cartao">
+          <h2>Novo barbeiro</h2>
+          <label>Nome <input name="nome" required minlength="2" maxlength="100"></label>
+          <label>E-mail <input name="email" type="email" required></label>
+          <button type="submit">Cadastrar</button>
+        </form>
+
+        <form id="form-servico" class="cartao">
+          <h2>Novo serviço</h2>
+          <label>Nome <input name="nome" required minlength="2" maxlength="100"></label>
+          <label>Duração (min) <input name="duracao_minutos" type="number" min="1" max="480" required></label>
+          <label>Preço (R$) <input name="preco" type="number" min="0" step="0.01" required></label>
+          <button type="submit">Cadastrar</button>
+        </form>
+
+        <form id="form-janela" class="cartao">
+          <h2>Disponibilidade do barbeiro</h2>
+          <label>Barbeiro <select id="janela-barbeiro" name="barbeiro" required></select></label>
+          <label>Dia da semana <select id="janela-dia" name="dia_semana"></select></label>
+          <label>Das <input name="hora_inicio" type="time" value="09:00" required></label>
+          <label>Às <input name="hora_fim" type="time" value="18:00" required></label>
+          <button type="submit">Adicionar janela</button>
+          <ul id="lista-janelas" class="janelas"></ul>
+        </form>
+      </div>
+    </section>
+
+    <p class="rodape">A confirmação por e-mail é simulada: aparece no log do servidor (terminal do <code>make run</code>).</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
