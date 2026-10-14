@@ -120,3 +120,10 @@ th { color: var(--texto-suave); font-weight: 600; }
   .confirmar { align-items: stretch; }
   .confirmar button { width: 100%; }
 }
+
+input[type="checkbox"] { width: auto; min-height: 0; accent-color: var(--destaque); }
+label.inline { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+button.pequeno { min-height: 32px; padding: 4px 10px; font-size: 0.85rem; width: auto; }
+button.perigo { color: var(--erro-texto); border-color: var(--erro-texto); }
+.painel.solto { border-top: 1px solid var(--borda); border-radius: var(--raio); margin-top: 16px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

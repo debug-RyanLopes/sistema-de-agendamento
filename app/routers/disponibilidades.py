@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from app.config import CONFIG
 from app.dependencies import AgoraDep, SessaoDep
@@ -34,6 +34,12 @@ def cadastrar_disponibilidade(
 )
 def listar_disponibilidades(barbeiro_id: int, sessao: SessaoDep) -> list[Disponibilidade]:
     return disponibilidade_service.listar_janelas(sessao, barbeiro_id)
+
+
+@router.delete("/disponibilidades/{janela_id}", status_code=204, responses=ERRO_404)
+def remover_disponibilidade(barbeiro_id: int, janela_id: int, sessao: SessaoDep) -> Response:
+    disponibilidade_service.remover_janela(sessao, barbeiro_id, janela_id)
+    return Response(status_code=204)
 
 
 @router.get(

@@ -2,10 +2,10 @@ import logging
 from datetime import datetime
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.dependencies import get_notificador
-from app.main import app
 from app.services.notificacao_service import DadosConfirmacao, LogNotificador
 from tests.helpers import AGORA_FIXO, DOMINGO, NotificadorFalso, NotificadorQuebrado, na_segunda
 
@@ -107,9 +107,12 @@ def test_at007_recurso_inexistente_retorna_404(
 
 
 def test_at009_falha_na_notificacao_nao_afeta_a_resposta(
-    client: TestClient, cenario_api: dict[str, int], caplog: pytest.LogCaptureFixture
+    app_admin: FastAPI,
+    client: TestClient,
+    cenario_api: dict[str, int],
+    caplog: pytest.LogCaptureFixture,
 ):
-    app.dependency_overrides[get_notificador] = lambda: NotificadorQuebrado()
+    app_admin.dependency_overrides[get_notificador] = lambda: NotificadorQuebrado()
 
     with caplog.at_level(logging.ERROR, logger="notificacoes"):
         resposta = _agendar(client, cenario_api, na_segunda(10))

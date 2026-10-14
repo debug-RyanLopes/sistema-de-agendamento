@@ -26,6 +26,7 @@ def listar(
     barbeiro_id: int | None = None,
     cliente_id: int | None = None,
     dia: date | None = None,
+    status: StatusAgendamento | None = None,
 ) -> list[Agendamento]:
     consulta = select(Agendamento).order_by(Agendamento.inicio, Agendamento.id)
     if barbeiro_id is not None:
@@ -35,6 +36,8 @@ def listar(
     if dia is not None:
         inicio_dia, fim_dia = _limites_do_dia(dia)
         consulta = consulta.where(Agendamento.inicio >= inicio_dia, Agendamento.inicio < fim_dia)
+    if status is not None:
+        consulta = consulta.where(Agendamento.status == status)
     return list(session.scalars(consulta))
 
 

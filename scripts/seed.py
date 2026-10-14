@@ -2,14 +2,15 @@ from datetime import time
 
 from sqlalchemy import select
 
-from app.database import SessionLocal, engine
-from app.models import Barbeiro, Base, Cliente, Disponibilidade, Servico
+from app.database import SessionLocal, aplicar_migracoes, engine
+from app.models import Barbeiro, Base, Cliente, Disponibilidade, Produto, Servico
 
 DIAS_UTEIS_E_SABADO = range(0, 6)
 
 
 def popular() -> None:
     Base.metadata.create_all(engine)
+    aplicar_migracoes(engine)
     with SessionLocal() as session:
         if session.scalars(select(Barbeiro)).first() is not None:
             print("Banco já possui dados; nada a fazer.")
@@ -24,6 +25,8 @@ def popular() -> None:
                 Servico(nome="Corte de cabelo", duracao_minutos=30, preco=45.0),
                 Servico(nome="Barba", duracao_minutos=20, preco=30.0),
                 Servico(nome="Corte + barba", duracao_minutos=60, preco=70.0),
+                Produto(nome="Pomada modeladora", preco=35.9, estoque=12),
+                Produto(nome="Óleo para barba", preco=42.0, estoque=8),
                 *barbeiros,
             ]
         )
@@ -39,7 +42,7 @@ def popular() -> None:
             for dia in DIAS_UTEIS_E_SABADO
         )
         session.commit()
-        print("Dados de exemplo criados: 1 cliente, 2 barbeiros, 3 serviços.")
+        print("Dados de exemplo criados: 1 cliente, 2 barbeiros, 3 serviços, 2 produtos.")
 
 
 if __name__ == "__main__":

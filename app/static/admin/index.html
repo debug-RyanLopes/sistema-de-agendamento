@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Barbearia - Painel da Empresa</title>
+  <link rel="stylesheet" href="/comum/base.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="conteudo">
+      <h1>Painel da Empresa</h1>
+      <p class="sub">Agendamentos e cadastros &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden></div>
+
+    <nav class="abas" aria-label="Seções">
+      <button type="button" class="aba ativa" data-aba="agendamentos">Agendamentos</button>
+      <button type="button" class="aba" data-aba="clientes">Clientes</button>
+      <button type="button" class="aba" data-aba="barbeiros">Barbeiros</button>
+      <button type="button" class="aba" data-aba="servicos">Serviços</button>
+      <button type="button" class="aba" data-aba="produtos">Produtos</button>
+    </nav>
+
+    <section id="aba-agendamentos" class="painel">
+      <form id="form-filtro" class="grade-form">
+        <label>Barbeiro <select id="filtro-barbeiro"></select></label>
+        <label>Cliente <select id="filtro-cliente"></select></label>
+        <label>Dia <input id="filtro-data" type="date"></label>
+        <label>Status
+          <select id="filtro-status">
+            <option value="">Todos</option>
+            <option value="agendado">Agendado</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </label>
+        <button type="submit" class="primario">Filtrar</button>
+        <button type="button" id="limpar-filtro">Limpar</button>
+      </form>
+
+      <div class="barra">
+        <label class="inline"><input id="auto-atualizar" type="checkbox" checked> Atualizar automaticamente (10 s)</label>
+        <button id="atualizar" type="button" class="pequeno">Atualizar agora</button>
+        <span id="resumo-agendamentos" class="ajuda"></span>
+      </div>
+
+      <div class="tabela-rolagem">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Início</th><th>Fim</th><th>Cliente</th><th>Barbeiro</th><th>Serviço</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="lista-agendamentos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="aba-clientes" class="painel" hidden></section>
+    <section id="aba-barbeiros" class="painel" hidden></section>
+    <section id="aba-servicos" class="painel" hidden></section>
+    <section id="aba-produtos" class="painel" hidden></section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

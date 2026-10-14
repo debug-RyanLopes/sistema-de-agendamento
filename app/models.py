@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, time
 
-from sqlalchemy import Enum, Float, ForeignKey, Index, String
+from sqlalchemy import Enum, Float, ForeignKey, Index, String, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -14,13 +14,18 @@ class StatusAgendamento(str, enum.Enum):
     CANCELADO = "cancelado"
 
 
+def _coluna_ativo() -> Mapped[bool]:
+    return mapped_column(default=True, server_default=true())
+
+
 class Cliente(Base):
     __tablename__ = "clientes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str] = mapped_column(String(254))
+    email: Mapped[str] = mapped_column(String(254), index=True)
     telefone: Mapped[str] = mapped_column(String(20))
+    ativo: Mapped[bool] = _coluna_ativo()
 
 
 class Barbeiro(Base):
@@ -29,6 +34,7 @@ class Barbeiro(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(254))
+    ativo: Mapped[bool] = _coluna_ativo()
 
 
 class Servico(Base):
@@ -38,6 +44,17 @@ class Servico(Base):
     nome: Mapped[str] = mapped_column(String(100))
     duracao_minutos: Mapped[int]
     preco: Mapped[float] = mapped_column(Float)
+    ativo: Mapped[bool] = _coluna_ativo()
+
+
+class Produto(Base):
+    __tablename__ = "produtos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(100))
+    preco: Mapped[float] = mapped_column(Float)
+    estoque: Mapped[int] = mapped_column(default=0)
+    ativo: Mapped[bool] = _coluna_ativo()
 
 
 class Disponibilidade(Base):
@@ -63,3 +80,4 @@ class Agendamento(Base):
     status: Mapped[StatusAgendamento] = mapped_column(
         Enum(StatusAgendamento), default=StatusAgendamento.AGENDADO
     )
+    codigo_cancelamento: Mapped[str | None] = mapped_column(String(64), default=None)

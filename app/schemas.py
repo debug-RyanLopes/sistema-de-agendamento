@@ -7,7 +7,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 
@@ -24,17 +23,32 @@ def _validar_email(valor: str) -> str:
 Email = Annotated[str, AfterValidator(_validar_email)]
 
 
+def _sem_fuso(valor: datetime) -> datetime:
+    if valor.tzinfo is not None:
+        raise ValueError("use horário local, sem fuso")
+    return valor
+
+
+HorarioLocal = Annotated[datetime, AfterValidator(_sem_fuso)]
+
+
 class ErroOut(BaseModel):
     detail: str
 
 
 ERRO_404 = {404: {"model": ErroOut, "description": "Recurso não encontrado"}}
 ERRO_409 = {409: {"model": ErroOut, "description": "Conflito de horário com outro agendamento"}}
-ERRO_422 = {422: {"description": "Dados inválidos, fora da disponibilidade ou no passado"}}
+ERRO_422 = {
+    422: {"description": "Dados inválidos, recurso inativo, fora da disponibilidade ou no passado"}
+}
 
 
 class _Saida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+class AtivoIn(BaseModel):
+    ativo: bool
 
 
 class ClienteIn(BaseModel):
@@ -48,6 +62,7 @@ class ClienteOut(_Saida):
     nome: str
     email: str
     telefone: str
+    ativo: bool
 
 
 class BarbeiroIn(BaseModel):
@@ -59,6 +74,7 @@ class BarbeiroOut(_Saida):
     id: int
     nome: str
     email: str
+    ativo: bool
 
 
 class ServicoIn(BaseModel):
@@ -72,6 +88,28 @@ class ServicoOut(_Saida):
     nome: str
     duracao_minutos: int
     preco: float
+    ativo: bool
+
+
+class ServicoPublicoOut(_Saida):
+    id: int
+    nome: str
+    duracao_minutos: int
+    preco: float
+
+
+class ProdutoIn(BaseModel):
+    nome: str = Field(min_length=2, max_length=100, examples=["Pomada modeladora"])
+    preco: float = Field(ge=0, examples=[35.9])
+    estoque: int = Field(ge=0, le=100000, examples=[12])
+
+
+class ProdutoOut(_Saida):
+    id: int
+    nome: str
+    preco: float
+    estoque: int
+    ativo: bool
 
 
 class DisponibilidadeIn(BaseModel):
@@ -98,16 +136,9 @@ class AgendamentoIn(BaseModel):
     cliente_id: int
     barbeiro_id: int
     servico_id: int
-    inicio: datetime = Field(
+    inicio: HorarioLocal = Field(
         description="Horário local, sem fuso", examples=["2030-01-07T10:00:00"]
     )
-
-    @field_validator("inicio")
-    @classmethod
-    def _sem_fuso(cls, valor: datetime) -> datetime:
-        if valor.tzinfo is not None:
-            raise ValueError("use horário local, sem fuso")
-        return valor
 
 
 class AgendamentoOut(_Saida):
@@ -125,3 +156,46 @@ class HorariosLivresOut(BaseModel):
     servico_id: int
     data: date
     horarios: list[datetime]
+
+
+class AgendamentoPublicoIn(BaseModel):
+    nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
+    email: Email = Field(examples=["carlos@exemplo.com"])
+    telefone: str = Field(min_length=8, max_length=20, examples=["11987654321"])
+    barbeiro_id: int
+    servico_id: int
+    inicio: HorarioLocal = Field(
+        description="Horário local, sem fuso", examples=["2030-01-07T10:00:00"]
+    )
+
+
+class ConfirmacaoOut(BaseModel):
+    id: int
+    codigo_cancelamento: str
+    barbeiro: str
+    servico: str
+    inicio: datetime
+    fim: datetime
+    preco: float
+    status: StatusAgendamento
+
+
+class CancelamentoIn(BaseModel):
+    codigo: str = Field(min_length=1, max_length=64)
+
+
+class CancelamentoOut(BaseModel):
+    id: int
+    status: StatusAgendamento
+
+
+class BarbeiroDisponivelOut(BaseModel):
+    id: int
+    nome: str
+    horarios: list[datetime]
+
+
+class DisponibilidadeDiaOut(BaseModel):
+    data: date
+    servico_id: int
+    barbeiros: list[BarbeiroDisponivelOut]

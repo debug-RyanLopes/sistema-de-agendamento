@@ -2,8 +2,9 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.errors import RecursoNaoEncontradoError
 from app.models import Barbeiro, Disponibilidade, Servico
-from app.repositories import agendamentos, disponibilidades
+from app.repositories import agendamentos, cadastros, disponibilidades
 from app.schemas import DisponibilidadeIn
 from app.services import cadastro_service
 
@@ -24,6 +25,15 @@ def listar_janelas(session: Session, barbeiro_id: int) -> list[Disponibilidade]:
     return disponibilidades.listar_por_barbeiro(session, barbeiro_id)
 
 
+def remover_janela(session: Session, barbeiro_id: int, janela_id: int) -> None:
+    cadastro_service.obter(session, Barbeiro, barbeiro_id, "barbeiro")
+    janela = disponibilidades.obter(session, janela_id)
+    if janela is None or janela.barbeiro_id != barbeiro_id:
+        raise RecursoNaoEncontradoError(f"janela {janela_id} não encontrada")
+    disponibilidades.remover(session, janela)
+    session.commit()
+
+
 def _alinhar(momento: datetime, slot_minutos: int) -> datetime:
     minutos = momento.hour * 60 + momento.minute
     if momento.second or momento.microsecond:
@@ -36,16 +46,14 @@ def _sobrepoe(inicio: datetime, fim: datetime, ocupados: list[tuple[datetime, da
     return any(inicio < o_fim and fim > o_inicio for o_inicio, o_fim in ocupados)
 
 
-def horarios_livres(
+def _calcular_horarios(
     session: Session,
     barbeiro_id: int,
-    servico_id: int,
+    servico: Servico,
     dia: date,
     agora: datetime,
     slot_minutos: int,
 ) -> list[datetime]:
-    cadastro_service.obter(session, Barbeiro, barbeiro_id, "barbeiro")
-    servico = cadastro_service.obter(session, Servico, servico_id, "serviço")
     duracao = timedelta(minutes=servico.duracao_minutos)
     passo = timedelta(minutes=slot_minutos)
     ocupados = [
@@ -61,3 +69,28 @@ def horarios_livres(
                 livres.add(cursor)
             cursor += passo
     return sorted(livres)
+
+
+def horarios_livres(
+    session: Session,
+    barbeiro_id: int,
+    servico_id: int,
+    dia: date,
+    agora: datetime,
+    slot_minutos: int,
+) -> list[datetime]:
+    cadastro_service.obter(session, Barbeiro, barbeiro_id, "barbeiro")
+    servico = cadastro_service.obter(session, Servico, servico_id, "serviço")
+    return _calcular_horarios(session, barbeiro_id, servico, dia, agora, slot_minutos)
+
+
+def barbeiros_disponiveis(
+    session: Session, servico_id: int, dia: date, agora: datetime, slot_minutos: int
+) -> list[tuple[Barbeiro, list[datetime]]]:
+    servico = cadastro_service.obter_ativo(session, Servico, servico_id, "serviço")
+    resultado = []
+    for barbeiro in cadastros.listar(session, Barbeiro, incluir_inativos=False):
+        horarios = _calcular_horarios(session, barbeiro.id, servico, dia, agora, slot_minutos)
+        if horarios:
+            resultado.append((barbeiro, horarios))
+    return resultado

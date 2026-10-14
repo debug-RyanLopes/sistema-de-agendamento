@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, BackgroundTasks
 
 from app.dependencies import AgoraDep, NotificadorDep, SessaoDep
-from app.models import Agendamento
+from app.models import Agendamento, StatusAgendamento
 from app.schemas import ERRO_404, ERRO_409, ERRO_422, AgendamentoIn, AgendamentoOut
 from app.services import agendamento_service
 from app.services.notificacao_service import enviar_sem_falhar
@@ -35,8 +35,9 @@ def listar_agendamentos(
     barbeiro_id: int | None = None,
     cliente_id: int | None = None,
     data: date | None = None,
+    status: StatusAgendamento | None = None,
 ) -> list[Agendamento]:
-    return agendamento_service.listar(sessao, barbeiro_id, cliente_id, data)
+    return agendamento_service.listar(sessao, barbeiro_id, cliente_id, data, status)
 
 
 @router.get("/{agendamento_id}", response_model=AgendamentoOut, responses=ERRO_404)

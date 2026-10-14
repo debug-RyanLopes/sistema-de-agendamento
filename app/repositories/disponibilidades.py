@@ -12,6 +12,15 @@ def adicionar(session: Session, janela: Disponibilidade) -> Disponibilidade:
     return janela
 
 
+def obter(session: Session, janela_id: int) -> Disponibilidade | None:
+    return session.get(Disponibilidade, janela_id)
+
+
+def remover(session: Session, janela: Disponibilidade) -> None:
+    session.delete(janela)
+    session.flush()
+
+
 def listar_por_barbeiro(session: Session, barbeiro_id: int) -> list[Disponibilidade]:
     consulta = (
         select(Disponibilidade)

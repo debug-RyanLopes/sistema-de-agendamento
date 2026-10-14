@@ -6,6 +6,10 @@ class RecursoNaoEncontradoError(DominioError):
     pass
 
 
+class RecursoInativoError(DominioError):
+    pass
+
+
 class ConflitoHorarioError(DominioError):
     pass
 

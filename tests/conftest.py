@@ -1,17 +1,25 @@
+import base64
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import time
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.dependencies import get_agora, get_db, get_notificador
-from app.main import app
+from app.main_admin import criar_app as criar_app_admin
+from app.main_cliente import criar_app as criar_app_cliente
 from app.models import Barbeiro, Base, Cliente, Disponibilidade, Servico
 from tests.helpers import AGORA_FIXO, NotificadorFalso
+
+SENHA_TESTE = "senha-de-teste"
+CABECALHO_ADMIN = {
+    "Authorization": "Basic " + base64.b64encode(f"admin:{SENHA_TESTE}".encode()).decode()
+}
 
 
 @dataclass
@@ -60,19 +68,39 @@ def notificador() -> NotificadorFalso:
     return NotificadorFalso()
 
 
-@pytest.fixture
-def client(engine: Engine, notificador: NotificadorFalso) -> Iterator[TestClient]:
+def configurar_dependencias(
+    aplicacao: FastAPI, engine: Engine, notificador: NotificadorFalso
+) -> FastAPI:
     fabrica = sessionmaker(bind=engine, expire_on_commit=False)
 
     def _sessao() -> Iterator[Session]:
         with fabrica() as sessao:
             yield sessao
 
-    app.dependency_overrides[get_db] = _sessao
-    app.dependency_overrides[get_agora] = lambda: AGORA_FIXO
-    app.dependency_overrides[get_notificador] = lambda: notificador
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+    aplicacao.dependency_overrides[get_db] = _sessao
+    aplicacao.dependency_overrides[get_agora] = lambda: AGORA_FIXO
+    aplicacao.dependency_overrides[get_notificador] = lambda: notificador
+    return aplicacao
+
+
+@pytest.fixture
+def app_admin(engine: Engine, notificador: NotificadorFalso) -> FastAPI:
+    return configurar_dependencias(criar_app_admin(SENHA_TESTE), engine, notificador)
+
+
+@pytest.fixture
+def app_publico(engine: Engine, notificador: NotificadorFalso) -> FastAPI:
+    return configurar_dependencias(criar_app_cliente(), engine, notificador)
+
+
+@pytest.fixture
+def client(app_admin: FastAPI) -> TestClient:
+    return TestClient(app_admin, headers=CABECALHO_ADMIN)
+
+
+@pytest.fixture
+def client_publico(app_publico: FastAPI) -> TestClient:
+    return TestClient(app_publico)
 
 
 @pytest.fixture
