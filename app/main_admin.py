@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from app.aplicacao import criar_aplicacao
 from app.config import CONFIG, USUARIO_ADMIN
-from app.routers import agendamentos, cadastros, disponibilidades
+from app.routers import agendamentos, cadastros, disponibilidades, gestao_barbeiros
 from app.seguranca import SenhaBasicaMiddleware
 
 
@@ -20,6 +20,7 @@ def criar_app(senha: str | None = None) -> FastAPI:
             agendamentos.router,
             cadastros.clientes,
             cadastros.barbeiros,
+            gestao_barbeiros.router,
             cadastros.servicos,
             cadastros.produtos,
             disponibilidades.router,

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.services.notificacao_service import LogNotificador, Notificador
+from app.tempo import agora_local
 
 _NOTIFICADOR_PADRAO = LogNotificador()
 
@@ -17,7 +18,7 @@ def get_db() -> Iterator[Session]:
 
 
 def get_agora() -> datetime:
-    return datetime.now()
+    return agora_local()
 
 
 def get_notificador() -> Notificador:

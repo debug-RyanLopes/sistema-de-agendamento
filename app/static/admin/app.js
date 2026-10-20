@@ -5,6 +5,8 @@ import {
   elemento,
   falha,
   formatarDataHora,
+  formatarTelefone,
+  dataLocalHoje,
   mensagem,
   preencherSelect,
   reais,
@@ -12,6 +14,7 @@ import {
 
 const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 const INTERVALO_ATUALIZACAO_MS = 10000;
+const ITENS_POR_PAGINA = 25;
 
 const NOME = { nome: "nome", rotulo: "Nome", tipo: "text", atributos: { minLength: 2, maxLength: 100 } };
 const EMAIL = { nome: "email", rotulo: "E-mail", tipo: "email", atributos: {} };
@@ -22,8 +25,8 @@ const CADASTROS = [
     rota: "/clientes",
     titulo: "Clientes",
     singular: "cliente",
-    campos: [NOME, EMAIL, { nome: "telefone", rotulo: "Telefone", tipo: "text", atributos: { minLength: 8, maxLength: 20 } }],
-    colunas: [["Nome", (c) => c.nome], ["E-mail", (c) => c.email], ["Telefone", (c) => c.telefone]],
+    campos: [NOME, EMAIL, { nome: "telefone", rotulo: "Telefone", tipo: "text", atributos: { minLength: 10, maxLength: 20, placeholder: "(92) 91234-5678" } }],
+    colunas: [["Nome", (c) => c.nome], ["E-mail", (c) => c.email], ["Telefone", (c) => formatarTelefone(c.telefone)]],
   },
   {
     id: "barbeiros",
@@ -41,7 +44,7 @@ const CADASTROS = [
     campos: [
       NOME,
       { nome: "duracao_minutos", rotulo: "Duração (min)", tipo: "number", numero: true, atributos: { min: 1, max: 480 } },
-      { nome: "preco", rotulo: "Preço (R$)", tipo: "number", numero: true, atributos: { min: 0, step: "0.01" } },
+      { nome: "preco", rotulo: "Preço (R$)", tipo: "number", dinheiro: true, atributos: { min: 0, step: "0.01" } },
     ],
     colunas: [["Nome", (s) => s.nome], ["Duração", (s) => `${s.duracao_minutos} min`], ["Preço", (s) => reais(s.preco)]],
   },
@@ -52,7 +55,7 @@ const CADASTROS = [
     singular: "produto",
     campos: [
       NOME,
-      { nome: "preco", rotulo: "Preço (R$)", tipo: "number", numero: true, atributos: { min: 0, step: "0.01" } },
+      { nome: "preco", rotulo: "Preço (R$)", tipo: "number", dinheiro: true, atributos: { min: 0, step: "0.01" } },
       { nome: "estoque", rotulo: "Estoque", tipo: "number", numero: true, atributos: { min: 0, max: 100000 } },
     ],
     colunas: [["Nome", (p) => p.nome], ["Preço", (p) => reais(p.preco)], ["Estoque", (p) => String(p.estoque)]],
@@ -60,7 +63,7 @@ const CADASTROS = [
 ];
 
 const dados = { clientes: [], barbeiros: [], servicos: [], produtos: [] };
-const estado = { agendamentos: [], janelaBarbeiroId: "" };
+const estado = { agendamentos: [], total: 0, deslocamento: 0, janelaBarbeiroId: "" };
 
 function nomePorId(lista, id) {
   const item = lista.find((entrada) => entrada.id === id);
@@ -137,7 +140,8 @@ function corpoDoFormulario(cad) {
   const corpo = {};
   cad.campos.forEach((campo) => {
     const valor = cad.ui.formulario.elements[campo.nome].value;
-    corpo[campo.nome] = campo.numero ? Number(valor) : valor;
+    if (campo.dinheiro) corpo[campo.nome] = valor.replace(",", ".");
+    else corpo[campo.nome] = campo.numero ? Number(valor) : valor;
   });
   return corpo;
 }
@@ -157,7 +161,74 @@ async function salvarCadastro(evento, cad) {
   mensagem("sucesso", editando ? `${cad.singular} atualizado.` : `${cad.singular} cadastrado.`);
 }
 
+function tempoNaEmpresa(dias) {
+  if (dias === null) return "não registrado";
+  if (dias < 1) return "cadastrado hoje";
+  if (dias < 60) return `${dias} ${dias === 1 ? "dia" : "dias"}`;
+  const meses = Math.floor(dias / 30.44);
+  if (meses < 24) return `${meses} meses`;
+  const anos = Math.floor(meses / 12);
+  const restante = meses % 12;
+  const textoAnos = `${anos} anos`;
+  return restante ? `${textoAnos} e ${restante} ${restante === 1 ? "mês" : "meses"}` : textoAnos;
+}
+
+function resumoDoImpacto(impacto) {
+  const linhas = [
+    ["Tempo na empresa", tempoNaEmpresa(impacto.dias_na_empresa)],
+    ["Atendimentos já realizados", String(impacto.atendimentos_realizados)],
+    ["Agendamentos futuros", String(impacto.total_futuros)],
+  ];
+  if (impacto.total_futuros) {
+    linhas.push(["Valor agendado", reais(impacto.valor_futuro)]);
+    linhas.push(["Próximo atendimento", formatarDataHora(impacto.proximo_atendimento)]);
+  }
+  const caixa = elemento(
+    "dl",
+    { classe: "resumo-impacto" },
+    ...linhas.map(([rotulo, valor]) => elemento("div", {}, elemento("dt", { textContent: rotulo }), elemento("dd", { textContent: valor }))),
+  );
+  const partes = [caixa];
+  if (impacto.total_futuros) {
+    partes.push(
+      elemento("p", {
+        classe: "aviso-impacto",
+        textContent:
+          "Os agendamentos abaixo continuam marcados. Desativar não os cancela: avise os clientes " +
+          "ou cancele-os na aba Agendamentos.",
+      }),
+      elemento(
+        "ul",
+        { classe: "lista-impacto" },
+        ...impacto.agendamentos_futuros.map((a) =>
+          elemento("li", { textContent: `${formatarDataHora(a.inicio)} - ${a.cliente} (${a.servico})` }),
+        ),
+      ),
+    );
+  }
+  return partes;
+}
+
+function confirmarDesativacao(impacto) {
+  const dialogo = $("dialogo-desativar");
+  $("dialogo-titulo").textContent = `Desativar ${impacto.nome}?`;
+  $("dialogo-corpo").replaceChildren(...resumoDoImpacto(impacto));
+  return new Promise((resolver) => {
+    dialogo.addEventListener("close", () => resolver(dialogo.returnValue === "confirmar"), { once: true });
+    dialogo.returnValue = "voltar";
+    dialogo.showModal();
+  });
+}
+
 async function alternarAtivo(cad, item) {
+  if (cad.id === "barbeiros" && item.ativo) {
+    const impacto = await api("GET", `/barbeiros/${item.id}/impacto-desativacao`);
+    if (!impacto.ok) {
+      falha(impacto);
+      return;
+    }
+    if (!(await confirmarDesativacao(impacto.dados))) return;
+  }
   const resposta = await api("PATCH", `${cad.rota}/${item.id}/ativo`, { ativo: !item.ativo });
   if (!resposta.ok) {
     falha(resposta);
@@ -318,18 +389,28 @@ function filtrosAtuais() {
   if ($("filtro-cliente").value) filtros.set("cliente_id", $("filtro-cliente").value);
   if ($("filtro-data").value) filtros.set("data", $("filtro-data").value);
   if ($("filtro-status").value) filtros.set("status", $("filtro-status").value);
+  if ($("filtro-futuros").checked) filtros.set("desde", dataLocalHoje());
   return filtros.toString();
 }
 
-async function carregarAgendamentos(evento) {
+async function carregarAgendamentos(evento, { primeiraPagina = false } = {}) {
   if (evento) evento.preventDefault();
-  const consulta = filtrosAtuais();
-  const resposta = await api("GET", `/agendamentos${consulta ? `?${consulta}` : ""}`);
+  if (primeiraPagina) estado.deslocamento = 0;
+  const filtros = new URLSearchParams(filtrosAtuais());
+  filtros.set("limite", String(ITENS_POR_PAGINA));
+  filtros.set("deslocamento", String(estado.deslocamento));
+  const resposta = await api("GET", `/agendamentos?${filtros}`);
   if (!resposta.ok) {
     falha(resposta);
     return;
   }
-  estado.agendamentos = resposta.dados;
+  if (!resposta.dados.itens.length && estado.deslocamento > 0) {
+    estado.deslocamento = Math.max(0, (Math.ceil(resposta.dados.total / ITENS_POR_PAGINA) - 1) * ITENS_POR_PAGINA);
+    await carregarAgendamentos();
+    return;
+  }
+  estado.agendamentos = resposta.dados.itens;
+  estado.total = resposta.dados.total;
   if (referenciasDesconhecidas()) await recarregarCadastros();
   renderizarAgendamentos();
 }
@@ -346,7 +427,11 @@ function referenciasDesconhecidas() {
 
 function renderizarAgendamentos() {
   const itens = estado.agendamentos;
-  $("resumo-agendamentos").textContent = `${itens.length} agendamento(s)`;
+  const primeiro = estado.total ? estado.deslocamento + 1 : 0;
+  const ultimo = estado.deslocamento + itens.length;
+  $("pag-info").textContent = estado.total ? `Mostrando ${primeiro}–${ultimo} de ${estado.total}` : "Nenhum agendamento";
+  $("pag-anterior").disabled = estado.deslocamento === 0;
+  $("pag-proxima").disabled = ultimo >= estado.total;
   $("lista-agendamentos").replaceChildren(
     ...itens.map((agendamento) => {
       const linha = elemento("tr");
@@ -411,9 +496,17 @@ async function iniciar() {
   montarJanelas();
 
   document.querySelectorAll(".aba").forEach((aba) => aba.addEventListener("click", () => trocarAba(aba.dataset.aba)));
-  $("form-filtro").addEventListener("submit", carregarAgendamentos);
+  $("form-filtro").addEventListener("submit", (evento) => carregarAgendamentos(evento, { primeiraPagina: true }));
   $("limpar-filtro").addEventListener("click", () => {
     $("form-filtro").reset();
+    carregarAgendamentos(null, { primeiraPagina: true });
+  });
+  $("pag-anterior").addEventListener("click", () => {
+    estado.deslocamento = Math.max(0, estado.deslocamento - ITENS_POR_PAGINA);
+    carregarAgendamentos();
+  });
+  $("pag-proxima").addEventListener("click", () => {
+    estado.deslocamento += ITENS_POR_PAGINA;
     carregarAgendamentos();
   });
   $("atualizar").addEventListener("click", () => carregarAgendamentos());

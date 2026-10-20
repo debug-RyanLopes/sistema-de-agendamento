@@ -1,12 +1,30 @@
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.errors import RecursoInativoError, RecursoNaoEncontradoError
+from app.errors import RecursoDuplicadoError, RecursoInativoError, RecursoNaoEncontradoError
+from app.models import Cliente
 from app.repositories import cadastros
 from app.repositories.cadastros import Entidade
 
+CAMPOS_UNICOS = {Cliente: "email"}
+
+
+def _garantir_unicidade(
+    session: Session,
+    modelo: type[Entidade],
+    dados: BaseModel,
+    ignorar_id: int | None = None,
+) -> None:
+    campo = CAMPOS_UNICOS.get(modelo)
+    if campo is None:
+        return
+    valor = getattr(dados, campo)
+    if cadastros.existe_com_valor(session, modelo, campo, valor, ignorar_id):
+        raise RecursoDuplicadoError(f"já existe um cadastro com este {campo}: {valor}")
+
 
 def criar(session: Session, modelo: type[Entidade], dados: BaseModel) -> Entidade:
+    _garantir_unicidade(session, modelo, dados)
     entidade = cadastros.adicionar(session, modelo(**dados.model_dump()))
     session.commit()
     return entidade
@@ -44,6 +62,7 @@ def atualizar(
     rotulo: str,
 ) -> Entidade:
     entidade = obter(session, modelo, identificador, rotulo)
+    _garantir_unicidade(session, modelo, dados, ignorar_id=identificador)
     for campo, valor in dados.model_dump().items():
         setattr(entidade, campo, valor)
     session.commit()

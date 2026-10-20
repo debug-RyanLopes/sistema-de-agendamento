@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Annotated
 
 from pydantic import (
@@ -10,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import StatusAgendamento
+from app.models import CENTAVOS, StatusAgendamento
 
 
 def _validar_email(valor: str) -> str:
@@ -23,9 +24,33 @@ def _validar_email(valor: str) -> str:
 Email = Annotated[str, AfterValidator(_validar_email)]
 
 
+def _validar_telefone(valor: str) -> str:
+    """Aceita telefone brasileiro com DDD, com ou sem máscara; guarda só os dígitos."""
+    digitos = re.sub(r"[\s().+-]", "", valor)
+    if not digitos.isdigit():
+        raise ValueError("telefone deve ter só números, espaços, parênteses ou hífen")
+    if digitos.startswith("0") or len(digitos) not in (10, 11):
+        raise ValueError("informe o telefone com DDD, ex.: (92) 91234-5678")
+    if len(digitos) == 11 and digitos[2] != "9":
+        raise ValueError("celular com 11 dígitos deve ter 9 depois do DDD")
+    if len(digitos) == 10 and digitos[2] not in "2345":
+        raise ValueError("telefone fixo deve começar com 2, 3, 4 ou 5 depois do DDD")
+    return digitos
+
+
+Telefone = Annotated[str, AfterValidator(_validar_telefone)]
+
+
+Dinheiro = Annotated[
+    Decimal,
+    Field(ge=0, max_digits=10, decimal_places=2),
+    AfterValidator(lambda valor: valor.quantize(CENTAVOS)),
+]
+
+
 def _sem_fuso(valor: datetime) -> datetime:
     if valor.tzinfo is not None:
-        raise ValueError("use horário local, sem fuso")
+        raise ValueError("use o horário de Manaus, sem fuso")
     return valor
 
 
@@ -54,7 +79,7 @@ class AtivoIn(BaseModel):
 class ClienteIn(BaseModel):
     nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
     email: Email = Field(examples=["carlos@exemplo.com"])
-    telefone: str = Field(min_length=8, max_length=20, examples=["11987654321"])
+    telefone: Telefone = Field(examples=["(92) 91234-5678"])
 
 
 class ClienteOut(_Saida):
@@ -80,14 +105,14 @@ class BarbeiroOut(_Saida):
 class ServicoIn(BaseModel):
     nome: str = Field(min_length=2, max_length=100, examples=["Corte de cabelo"])
     duracao_minutos: int = Field(gt=0, le=480, examples=[30])
-    preco: float = Field(ge=0, examples=[45.0])
+    preco: Dinheiro = Field(examples=["45.00"])
 
 
 class ServicoOut(_Saida):
     id: int
     nome: str
     duracao_minutos: int
-    preco: float
+    preco: Dinheiro
     ativo: bool
 
 
@@ -95,19 +120,19 @@ class ServicoPublicoOut(_Saida):
     id: int
     nome: str
     duracao_minutos: int
-    preco: float
+    preco: Dinheiro
 
 
 class ProdutoIn(BaseModel):
     nome: str = Field(min_length=2, max_length=100, examples=["Pomada modeladora"])
-    preco: float = Field(ge=0, examples=[35.9])
+    preco: Dinheiro = Field(examples=["35.90"])
     estoque: int = Field(ge=0, le=100000, examples=[12])
 
 
 class ProdutoOut(_Saida):
     id: int
     nome: str
-    preco: float
+    preco: Dinheiro
     estoque: int
     ativo: bool
 
@@ -137,7 +162,7 @@ class AgendamentoIn(BaseModel):
     barbeiro_id: int
     servico_id: int
     inicio: HorarioLocal = Field(
-        description="Horário local, sem fuso", examples=["2030-01-07T10:00:00"]
+        description="Horário de Manaus (UTC-4), sem fuso", examples=["2030-01-07T10:00:00"]
     )
 
 
@@ -151,6 +176,13 @@ class AgendamentoOut(_Saida):
     status: StatusAgendamento
 
 
+class PaginaAgendamentosOut(BaseModel):
+    itens: list[AgendamentoOut]
+    total: int
+    limite: int
+    deslocamento: int
+
+
 class HorariosLivresOut(BaseModel):
     barbeiro_id: int
     servico_id: int
@@ -161,11 +193,11 @@ class HorariosLivresOut(BaseModel):
 class AgendamentoPublicoIn(BaseModel):
     nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
     email: Email = Field(examples=["carlos@exemplo.com"])
-    telefone: str = Field(min_length=8, max_length=20, examples=["11987654321"])
+    telefone: Telefone = Field(examples=["(92) 91234-5678"])
     barbeiro_id: int
     servico_id: int
     inicio: HorarioLocal = Field(
-        description="Horário local, sem fuso", examples=["2030-01-07T10:00:00"]
+        description="Horário de Manaus (UTC-4), sem fuso", examples=["2030-01-07T10:00:00"]
     )
 
 
@@ -176,7 +208,7 @@ class ConfirmacaoOut(BaseModel):
     servico: str
     inicio: datetime
     fim: datetime
-    preco: float
+    preco: Dinheiro
     status: StatusAgendamento
 
 
@@ -199,3 +231,24 @@ class DisponibilidadeDiaOut(BaseModel):
     data: date
     servico_id: int
     barbeiros: list[BarbeiroDisponivelOut]
+
+
+class AgendamentoFuturoOut(BaseModel):
+    id: int
+    inicio: datetime
+    cliente: str
+    servico: str
+    preco: Dinheiro
+
+
+class ImpactoDesativacaoOut(BaseModel):
+    barbeiro_id: int
+    nome: str
+    ativo: bool
+    cadastrado_em: datetime | None
+    dias_na_empresa: int | None
+    atendimentos_realizados: int
+    total_futuros: int
+    valor_futuro: Dinheiro
+    proximo_atendimento: datetime | None
+    agendamentos_futuros: list[AgendamentoFuturoOut]

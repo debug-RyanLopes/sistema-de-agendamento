@@ -8,6 +8,7 @@ import {
   mensagem,
   preencherSelect,
   reais,
+  ultimoDiaDoMes,
 } from "/comum/util.js";
 
 const CHAVE_AGENDAMENTO = "barbearia.ultimoAgendamento";
@@ -140,6 +141,7 @@ function iniciar() {
   const hoje = dataLocalHoje();
   $("data").value = hoje;
   $("data").min = hoje;
+  $("data").max = ultimoDiaDoMes(hoje);
 
   $("ver-barbeiros").addEventListener("click", verBarbeiros);
   $("servico").addEventListener("change", limparEscolha);

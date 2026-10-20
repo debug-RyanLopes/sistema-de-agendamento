@@ -12,9 +12,12 @@ from app.config import CONFIG
 from app.database import aplicar_migracoes, engine
 from app.errors import (
     ConflitoHorarioError,
+    DataForaDaJanelaError,
     DominioError,
     ForaDaDisponibilidadeError,
+    HorarioInvalidoError,
     HorarioPassadoError,
+    RecursoDuplicadoError,
     RecursoInativoError,
     RecursoNaoEncontradoError,
 )
@@ -28,6 +31,9 @@ ERROS_HTTP: dict[type[DominioError], int] = {
     ForaDaDisponibilidadeError: 422,
     HorarioPassadoError: 422,
     RecursoInativoError: 422,
+    RecursoDuplicadoError: 409,
+    HorarioInvalidoError: 422,
+    DataForaDaJanelaError: 422,
 }
 
 

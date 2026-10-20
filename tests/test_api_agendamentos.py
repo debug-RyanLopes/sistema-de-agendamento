@@ -54,7 +54,7 @@ def test_at002_sobreposicao_retorna_409_e_nao_grava(
     resposta = _agendar(client, cenario_api, na_segunda(hora, minuto), servico)
 
     assert resposta.status_code == 409
-    assert len(client.get("/agendamentos").json()) == 1
+    assert client.get("/agendamentos").json()["total"] == 1
     assert len(notificador.enviados) == 1
 
 
@@ -148,9 +148,9 @@ def test_lista_filtra_e_obtem_agendamento(client: TestClient, cenario_api: dict[
     por_dia = client.get("/agendamentos", params={"data": "2030-01-07"})
     outro_dia = client.get("/agendamentos", params={"data": "2030-01-08"})
 
-    assert [item["id"] for item in filtrado.json()] == [criado["id"]]
-    assert len(por_dia.json()) == 1
-    assert outro_dia.json() == []
+    assert [item["id"] for item in filtrado.json()["itens"]] == [criado["id"]]
+    assert por_dia.json()["total"] == 1
+    assert outro_dia.json()["itens"] == []
     assert client.get(f"/agendamentos/{criado['id']}").json()["id"] == criado["id"]
 
 

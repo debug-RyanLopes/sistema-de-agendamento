@@ -1,10 +1,17 @@
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from app.dependencies import AgoraDep, NotificadorDep, SessaoDep
 from app.models import Agendamento, StatusAgendamento
-from app.schemas import ERRO_404, ERRO_409, ERRO_422, AgendamentoIn, AgendamentoOut
+from app.schemas import (
+    ERRO_404,
+    ERRO_409,
+    ERRO_422,
+    AgendamentoIn,
+    AgendamentoOut,
+    PaginaAgendamentosOut,
+)
 from app.services import agendamento_service
 from app.services.notificacao_service import enviar_sem_falhar
 
@@ -29,15 +36,36 @@ def criar_agendamento(
     return agendamento
 
 
-@router.get("", response_model=list[AgendamentoOut])
+LIMITE_PADRAO = 50
+LIMITE_MAXIMO = 200
+
+
+@router.get(
+    "",
+    response_model=PaginaAgendamentosOut,
+    summary="Listar agendamentos (paginado)",
+    description=(
+        f"Devolve no máximo `limite` itens por chamada (padrão {LIMITE_PADRAO}, "
+        f"máximo {LIMITE_MAXIMO}), ordenados por início, mais o `total` que atende aos filtros. "
+        "Use `desde` para ver só de uma data em diante."
+    ),
+)
 def listar_agendamentos(
     sessao: SessaoDep,
     barbeiro_id: int | None = None,
     cliente_id: int | None = None,
     data: date | None = None,
     status: StatusAgendamento | None = None,
-) -> list[Agendamento]:
-    return agendamento_service.listar(sessao, barbeiro_id, cliente_id, data, status)
+    desde: date | None = None,
+    limite: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    deslocamento: int = Query(0, ge=0, le=1_000_000),
+) -> PaginaAgendamentosOut:
+    itens, total = agendamento_service.pagina(
+        sessao, limite, deslocamento, barbeiro_id, cliente_id, data, status, desde
+    )
+    return PaginaAgendamentosOut(
+        itens=itens, total=total, limite=limite, deslocamento=deslocamento
+    )
 
 
 @router.get("/{agendamento_id}", response_model=AgendamentoOut, responses=ERRO_404)

@@ -20,3 +20,15 @@ class ForaDaDisponibilidadeError(DominioError):
 
 class HorarioPassadoError(DominioError):
     pass
+
+
+class RecursoDuplicadoError(DominioError):
+    pass
+
+
+class HorarioInvalidoError(DominioError):
+    pass
+
+
+class DataForaDaJanelaError(DominioError):
+    pass

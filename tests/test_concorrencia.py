@@ -96,6 +96,6 @@ def test_cliente_e_empresa_disputando_o_mesmo_horario_geram_um_unico_agendamento
         status = list(pool.map(lambda tarefa: tarefa[0](tarefa[1]), tarefas))
 
     assert Counter(status) == {201: 1, 409: len(tarefas) - 1}
-    assert len(admin.get("/agendamentos").json()) == 1
+    assert admin.get("/agendamentos").json()["total"] == 1
     with fabrica() as sessao:
         assert sessao.query(Cliente).count() <= 1 + TENTATIVAS_POR_APLICACAO

@@ -134,7 +134,7 @@ def test_marca_agendamento_e_devolve_confirmacao_com_codigo(
     assert corpo["servico"] == "Corte de cabelo"
     assert corpo["inicio"] == na_segunda(10).isoformat()
     assert corpo["fim"] == na_segunda(10, 30).isoformat()
-    assert corpo["preco"] == 45.0
+    assert corpo["preco"] == "45.00"
     assert corpo["status"] == "agendado"
     assert len(corpo["codigo_cancelamento"]) >= 8
     assert len(notificador.enviados) == 1
@@ -273,7 +273,7 @@ def test_cliente_novo_aparece_para_a_empresa(
 ):
     _marcar(client_publico, cenario)
 
-    agendamentos = client.get("/agendamentos").json()
+    agendamentos = client.get("/agendamentos").json()["itens"]
     clientes = client.get("/clientes").json()
 
     assert len(agendamentos) == 1

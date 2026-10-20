@@ -47,6 +47,13 @@ export function formatarDataHora(iso) {
   return `${formatarData(iso)} ${iso.slice(11, 16)}`;
 }
 
+export function formatarTelefone(valor) {
+  const digitos = String(valor).replace(/\D/g, "");
+  if (digitos.length === 11) return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+  if (digitos.length === 10) return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  return String(valor);
+}
+
 export function reais(valor) {
   return `R$ ${Number(valor).toFixed(2).replace(".", ",")}`;
 }
@@ -78,6 +85,14 @@ export function elemento(tag, propriedades = {}, ...filhos) {
   return no;
 }
 
+export const FUSO = "America/Manaus";
+
 export function dataLocalHoje() {
-  return new Date().toLocaleDateString("sv-SE");
+  return new Date().toLocaleDateString("sv-SE", { timeZone: FUSO });
+}
+
+export function ultimoDiaDoMes(iso) {
+  const [ano, mes] = iso.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  return `${iso.slice(0, 8)}${String(ultimo).padStart(2, "0")}`;
 }

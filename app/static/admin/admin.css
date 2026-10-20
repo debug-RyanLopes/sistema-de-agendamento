@@ -18,3 +18,27 @@ tr.inativo td:not(:last-child) { opacity: 0.6; }
 .lista-janelas { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
 .lista-janelas li { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   border: 1px solid var(--borda); border-radius: var(--raio); padding: 6px 10px; }
+
+
+.acoes-filtro { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.paginacao { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.paginacao .ajuda { margin: 0; }
+.paginacao button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+dialog {
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto;
+  background: var(--superficie); color: var(--texto);
+  border: 1px solid var(--borda); border-radius: var(--raio); padding: 20px;
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+dialog h2 { margin-top: 0; }
+.resumo-impacto { display: grid; gap: 6px; margin: 12px 0; }
+.resumo-impacto div { display: flex; justify-content: space-between; gap: 12px; }
+.resumo-impacto dt { color: var(--texto-suave); }
+.resumo-impacto dd { margin: 0; font-weight: 600; text-align: right; }
+.aviso-impacto { background: var(--aviso-fundo); color: var(--aviso-texto);
+  border-radius: var(--raio); padding: 10px 12px; margin: 12px 0; }
+.lista-impacto { margin: 8px 0; padding-left: 18px; max-height: 160px; overflow: auto; font-size: 0.9rem; }
+.botoes-dialogo { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+.botoes-dialogo button { width: auto; }

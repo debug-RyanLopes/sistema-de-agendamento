@@ -70,7 +70,7 @@ def test_reaproveita_cliente_existente_sem_sobrescrever_dados(session: Session, 
         na_segunda(10),
         email="carlos@exemplo.com",
         nome="Outro Nome",
-        telefone="1100000000",
+        telefone="11922223333",
     )
 
     agendamento, _ = agendamento_service.criar_publico(session, dados, AGORA_FIXO)

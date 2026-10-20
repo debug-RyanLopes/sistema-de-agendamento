@@ -2,11 +2,13 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.errors import RecursoNaoEncontradoError
+from app.config import CONFIG
+from app.errors import DataForaDaJanelaError, RecursoNaoEncontradoError
 from app.models import Barbeiro, Disponibilidade, Servico
 from app.repositories import agendamentos, cadastros, disponibilidades
 from app.schemas import DisponibilidadeIn
 from app.services import cadastro_service
+from app.tempo import ultimo_dia_do_mes
 
 
 def cadastrar_janela(
@@ -40,6 +42,21 @@ def _alinhar(momento: datetime, slot_minutos: int) -> datetime:
         minutos += 1
     arredondado = -(-minutos // slot_minutos) * slot_minutos
     return datetime.combine(momento.date(), time.min) + timedelta(minutes=arredondado)
+
+
+def horario_alinhado(momento: datetime, slot_minutos: int | None = None) -> bool:
+    slot = slot_minutos or CONFIG.slot_minutes
+    minutos = momento.hour * 60 + momento.minute
+    return momento.second == 0 and momento.microsecond == 0 and minutos % slot == 0
+
+
+def validar_janela_de_datas(dia: date, agora: datetime, *, aceitar_passado: bool = False) -> None:
+    """A área do cliente só enxerga de hoje até o último dia do mês corrente."""
+    limite = ultimo_dia_do_mes(agora.date())
+    if dia > limite or (dia < agora.date() and not aceitar_passado):
+        raise DataForaDaJanelaError(
+            f"escolha uma data entre {agora.date():%d/%m/%Y} e {limite:%d/%m/%Y}"
+        )
 
 
 def _sobrepoe(inicio: datetime, fim: datetime, ocupados: list[tuple[datetime, datetime]]) -> bool:
@@ -88,6 +105,7 @@ def barbeiros_disponiveis(
     session: Session, servico_id: int, dia: date, agora: datetime, slot_minutos: int
 ) -> list[tuple[Barbeiro, list[datetime]]]:
     servico = cadastro_service.obter_ativo(session, Servico, servico_id, "serviço")
+    validar_janela_de_datas(dia, agora)
     resultado = []
     for barbeiro in cadastros.listar(session, Barbeiro, incluir_inativos=False):
         horarios = _calcular_horarios(session, barbeiro.id, servico, dia, agora, slot_minutos)

@@ -11,7 +11,7 @@
   <header class="topo">
     <div class="conteudo">
       <h1>Painel da Empresa</h1>
-      <p class="sub">Agendamentos e cadastros &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
+      <p class="sub">Agendamentos e cadastros &middot; horários de Manaus (UTC-4) &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
     </div>
   </header>
 
@@ -38,14 +38,22 @@
             <option value="cancelado">Cancelado</option>
           </select>
         </label>
-        <button type="submit" class="primario">Filtrar</button>
-        <button type="button" id="limpar-filtro">Limpar</button>
+        <div class="acoes-filtro">
+          <label class="inline"><input id="filtro-futuros" type="checkbox" checked> Só de hoje em diante</label>
+          <button type="submit" class="primario pequeno">Filtrar</button>
+          <button type="button" id="limpar-filtro" class="pequeno">Limpar</button>
+        </div>
       </form>
 
       <div class="barra">
         <label class="inline"><input id="auto-atualizar" type="checkbox" checked> Atualizar automaticamente (10 s)</label>
         <button id="atualizar" type="button" class="pequeno">Atualizar agora</button>
-        <span id="resumo-agendamentos" class="ajuda"></span>
+      </div>
+
+      <div class="paginacao">
+        <button id="pag-anterior" type="button" class="pequeno">Anterior</button>
+        <span id="pag-info" class="ajuda" aria-live="polite"></span>
+        <button id="pag-proxima" type="button" class="pequeno">Próxima</button>
       </div>
 
       <div class="tabela-rolagem">
@@ -63,6 +71,17 @@
     <section id="aba-servicos" class="painel" hidden></section>
     <section id="aba-produtos" class="painel" hidden></section>
   </main>
+
+  <dialog id="dialogo-desativar" aria-labelledby="dialogo-titulo">
+    <form method="dialog">
+      <h2 id="dialogo-titulo"></h2>
+      <div id="dialogo-corpo"></div>
+      <div class="botoes-dialogo">
+        <button id="dialogo-voltar" type="submit" value="voltar">Voltar</button>
+        <button id="dialogo-confirmar" type="submit" value="confirmar" class="perigo">Desativar mesmo assim</button>
+      </div>
+    </form>
+  </dialog>
 
   <script type="module" src="app.js"></script>
 </body>

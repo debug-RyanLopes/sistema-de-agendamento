@@ -5,7 +5,7 @@ from tests.helpers import na_segunda
 
 CLIENTE = {"nome": "Carlos Silva", "email": "carlos@exemplo.com", "telefone": "11987654321"}
 BARBEIRO = {"nome": "João Barbeiro", "email": "joao@barbearia.com"}
-SERVICO = {"nome": "Corte de cabelo", "duracao_minutos": 30, "preco": 45.0}
+SERVICO = {"nome": "Corte de cabelo", "duracao_minutos": 30, "preco": "45.00"}
 PRODUTO = {"nome": "Pomada modeladora", "preco": 35.9, "estoque": 12}
 
 CADASTROS = [
@@ -15,8 +15,8 @@ CADASTROS = [
         {"nome": "Carlos Souza", "email": "novo@exemplo.com", "telefone": "1122223333"},
     ),
     ("/barbeiros", BARBEIRO, {"nome": "Pedro Navalha", "email": "pedro@barbearia.com"}),
-    ("/servicos", SERVICO, {"nome": "Barba", "duracao_minutos": 20, "preco": 30.0}),
-    ("/produtos", PRODUTO, {"nome": "Óleo para barba", "preco": 42.0, "estoque": 3}),
+    ("/servicos", SERVICO, {"nome": "Barba", "duracao_minutos": 20, "preco": "30.00"}),
+    ("/produtos", PRODUTO, {"nome": "Óleo para barba", "preco": "42.00", "estoque": 3}),
 ]
 
 
@@ -85,7 +85,7 @@ def test_produto_guarda_estoque_e_preco(client: TestClient):
     criado = client.post("/produtos", json=PRODUTO).json()
 
     assert criado["estoque"] == 12
-    assert criado["preco"] == 35.9
+    assert criado["preco"] == "35.90"
     assert criado["ativo"] is True
 
 
@@ -144,15 +144,15 @@ def test_historico_continua_visivel_depois_de_desativar(
 
     client.patch(f"/barbeiros/{cenario_api['barbeiro_id']}/ativo", json={"ativo": False})
 
-    assert len(client.get("/agendamentos").json()) == 1
+    assert client.get("/agendamentos").json()["total"] == 1
 
 
 def test_filtra_agendamentos_por_status(client: TestClient, cenario_api: dict[str, int]):
     agendamento = _agendar(client, cenario_api).json()
     client.delete(f"/agendamentos/{agendamento['id']}")
 
-    cancelados = client.get("/agendamentos", params={"status": "cancelado"}).json()
-    agendados = client.get("/agendamentos", params={"status": "agendado"}).json()
+    cancelados = client.get("/agendamentos", params={"status": "cancelado"}).json()["itens"]
+    agendados = client.get("/agendamentos", params={"status": "agendado"}).json()["itens"]
 
     assert [item["id"] for item in cancelados] == [agendamento["id"]]
     assert agendados == []

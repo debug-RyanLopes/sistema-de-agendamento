@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol
 
 log = logging.getLogger("notificacoes")
@@ -13,7 +14,7 @@ class DadosConfirmacao:
     barbeiro: str
     servico: str
     inicio: datetime
-    preco: float
+    preco: Decimal
 
 
 class Notificador(Protocol):

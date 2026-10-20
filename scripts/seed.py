@@ -1,4 +1,5 @@
 from datetime import time
+from decimal import Decimal
 
 from sqlalchemy import select
 
@@ -22,11 +23,11 @@ def popular() -> None:
         session.add_all(
             [
                 Cliente(nome="Carlos Silva", email="carlos@exemplo.com", telefone="11987654321"),
-                Servico(nome="Corte de cabelo", duracao_minutos=30, preco=45.0),
-                Servico(nome="Barba", duracao_minutos=20, preco=30.0),
-                Servico(nome="Corte + barba", duracao_minutos=60, preco=70.0),
-                Produto(nome="Pomada modeladora", preco=35.9, estoque=12),
-                Produto(nome="Óleo para barba", preco=42.0, estoque=8),
+                Servico(nome="Corte de cabelo", duracao_minutos=30, preco=Decimal("45.0")),
+                Servico(nome="Barba", duracao_minutos=20, preco=Decimal("30.0")),
+                Servico(nome="Corte + barba", duracao_minutos=60, preco=Decimal("70.0")),
+                Produto(nome="Pomada modeladora", preco=Decimal("35.9"), estoque=12),
+                Produto(nome="Óleo para barba", preco=Decimal("42.0"), estoque=8),
                 *barbeiros,
             ]
         )
