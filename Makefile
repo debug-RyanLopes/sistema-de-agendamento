@@ -17,7 +17,7 @@ export PORTA_CLIENTE
 export PORTA_ADMIN
 
 .DEFAULT_GOAL := help
-.PHONY: help install run run-cliente run-admin seed test cov lint clean
+.PHONY: help install run run-cliente run-admin seed test e2e cov lint clean
 
 help:
 	@echo Comandos disponiveis:
@@ -28,6 +28,7 @@ help:
 	@echo                       usuario admin, senha $(ADMIN_PASSWORD) - so para desenvolvimento
 	@echo   make seed         - popula o banco com dados de exemplo
 	@echo   make test         - roda os testes
+	@echo   make e2e          - testes de navegador (precisa do Google Chrome)
 	@echo   make cov          - roda os testes com cobertura
 	@echo   make lint         - roda o ruff
 	@echo   make clean        - remove caches e o arquivo .coverage
@@ -37,7 +38,7 @@ help:
 	$(PYTHON) -m venv .venv
 
 install: .venv
-	$(PY) -m pip install -q -r requirements.txt ruff
+	$(PY) -m pip install -q -r requirements-dev.txt
 
 run: install
 	$(PY) -m scripts.dev
@@ -53,6 +54,9 @@ seed: install
 
 test: install
 	$(PY) -m pytest
+
+e2e: install
+	$(PY) -m pytest -m e2e
 
 cov: install
 	$(PY) -m pytest --cov=app --cov-report=term-missing
