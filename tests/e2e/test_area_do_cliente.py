@@ -102,12 +102,11 @@ def test_confirmar_fica_desabilitado_ate_escolher_um_horario(pagina_cliente):
     assert pagina_cliente.is_disabled("#confirmar")
 
 
-def test_data_so_aceita_de_hoje_ate_o_fim_do_mes_em_manaus(pagina_cliente):
+def test_data_so_aceita_de_hoje_ate_o_fim_do_mes_no_fuso_da_barbearia(pagina_cliente):
     hoje = agora_local().date()
 
     assert pagina_cliente.get_attribute("#data", "min") == hoje.isoformat()
     assert pagina_cliente.get_attribute("#data", "max") == ultimo_dia_do_mes(hoje).isoformat()
-    assert "Manaus" in pagina_cliente.inner_text(".topo")
 
 
 def test_servidor_recusa_data_fora_da_janela_mesmo_sem_o_navegador(

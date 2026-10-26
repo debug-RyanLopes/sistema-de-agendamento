@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 DIAS_UTEIS_E_SABADO = range(0, 6)
 
-# O cliente monta o próprio combo marcando mais de um serviço (ex.: Corte + Barba).
+# Não há serviço "combo" fixo: o cliente monta o seu marcando mais de um (ex.: Corte + Barba).
 SERVICOS = [
     Servico(nome="Corte de cabelo", duracao_minutos=30, preco=Decimal("45.0")),
     Servico(nome="Barba", duracao_minutos=20, preco=Decimal("30.0")),
