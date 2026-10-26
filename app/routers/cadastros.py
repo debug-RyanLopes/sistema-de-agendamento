@@ -72,18 +72,34 @@ def criar_router_cadastro(
 
 
 clientes = criar_router_cadastro(
-    prefixo="/clientes", tag="clientes", modelo=Cliente, entrada=ClienteIn, saida=ClienteOut,
+    prefixo="/clientes",
+    tag="clientes",
+    modelo=Cliente,
+    entrada=ClienteIn,
+    saida=ClienteOut,
     rotulo="cliente",
 )
 barbeiros = criar_router_cadastro(
-    prefixo="/barbeiros", tag="barbeiros", modelo=Barbeiro, entrada=BarbeiroIn,
-    saida=BarbeiroOut, rotulo="barbeiro",
+    prefixo="/barbeiros",
+    tag="barbeiros",
+    modelo=Barbeiro,
+    entrada=BarbeiroIn,
+    saida=BarbeiroOut,
+    rotulo="barbeiro",
 )
 servicos = criar_router_cadastro(
-    prefixo="/servicos", tag="serviços", modelo=Servico, entrada=ServicoIn, saida=ServicoOut,
+    prefixo="/servicos",
+    tag="serviços",
+    modelo=Servico,
+    entrada=ServicoIn,
+    saida=ServicoOut,
     rotulo="serviço",
 )
 produtos = criar_router_cadastro(
-    prefixo="/produtos", tag="produtos", modelo=Produto, entrada=ProdutoIn, saida=ProdutoOut,
+    prefixo="/produtos",
+    tag="produtos",
+    modelo=Produto,
+    entrada=ProdutoIn,
+    saida=ProdutoOut,
     rotulo="produto",
 )

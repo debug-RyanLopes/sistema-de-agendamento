@@ -1,12 +1,12 @@
 from datetime import datetime
 
 import pytest
+from app.dependencies import get_agora
+from app.models import Barbeiro
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_agora
-from app.models import Barbeiro
 from tests.conftest import Cenario
 from tests.helpers import DOMINGO, NotificadorFalso, na_segunda
 
@@ -37,9 +37,7 @@ def test_area_do_cliente_expoe_somente_as_rotas_do_cliente(client_publico: TestC
 
 
 @pytest.mark.parametrize("caminho", ["/clientes", "/barbeiros", "/produtos", "/agendamentos/1"])
-def test_rotas_da_empresa_nao_existem_na_area_do_cliente(
-    client_publico: TestClient, caminho: str
-):
+def test_rotas_da_empresa_nao_existem_na_area_do_cliente(client_publico: TestClient, caminho: str):
     assert client_publico.get(caminho).status_code == 404
 
 
@@ -179,9 +177,7 @@ def test_horario_fora_da_janela_e_no_passado_retornam_422(
     assert client_publico.post("/agendamentos", json=_corpo(cenario, passado)).status_code == 422
 
 
-def test_barbeiro_ou_servico_inexistente_retorna_404(
-    client_publico: TestClient, cenario: Cenario
-):
+def test_barbeiro_ou_servico_inexistente_retorna_404(client_publico: TestClient, cenario: Cenario):
     corpo = _corpo(cenario, na_segunda(10), barbeiro_id=999)
 
     assert client_publico.post("/agendamentos", json=corpo).status_code == 404

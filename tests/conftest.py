@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from datetime import time
 
 import pytest
+from app.dependencies import get_agora, get_db, get_notificador
+from app.main_admin import criar_app as criar_app_admin
+from app.main_cliente import criar_app as criar_app_cliente
+from app.models import Barbeiro, Base, Cliente, Disponibilidade, Servico
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.dependencies import get_agora, get_db, get_notificador
-from app.main_admin import criar_app as criar_app_admin
-from app.main_cliente import criar_app as criar_app_cliente
-from app.models import Barbeiro, Base, Cliente, Disponibilidade, Servico
 from tests.helpers import AGORA_FIXO, NotificadorFalso
 
 SENHA_TESTE = "senha-de-teste"

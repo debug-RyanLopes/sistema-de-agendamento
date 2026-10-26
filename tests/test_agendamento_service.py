@@ -1,8 +1,6 @@
 from datetime import datetime, time
 
 import pytest
-from sqlalchemy.orm import Session
-
 from app.errors import (
     ConflitoHorarioError,
     ForaDaDisponibilidadeError,
@@ -12,6 +10,8 @@ from app.errors import (
 from app.models import Barbeiro, Disponibilidade, StatusAgendamento
 from app.schemas import AgendamentoIn
 from app.services import agendamento_service
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, DOMINGO, na_segunda
 

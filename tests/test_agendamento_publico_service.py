@@ -1,9 +1,6 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
 from app.errors import (
     ConflitoHorarioError,
     ForaDaDisponibilidadeError,
@@ -14,6 +11,9 @@ from app.errors import (
 from app.models import Agendamento, Barbeiro, Cliente, StatusAgendamento
 from app.schemas import AgendamentoIn, AgendamentoPublicoIn
 from app.services import agendamento_service, disponibilidade_service
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, DOMINGO, na_segunda
 
@@ -95,9 +95,7 @@ def test_cliente_inativo_nao_agenda_e_nada_e_gravado(session: Session, cenario: 
 
 
 @pytest.mark.parametrize("recurso", ["barbeiro", "servico_30"])
-def test_barbeiro_ou_servico_inativo_nao_agenda(
-    session: Session, cenario: Cenario, recurso: str
-):
+def test_barbeiro_ou_servico_inativo_nao_agenda(session: Session, cenario: Cenario, recurso: str):
     getattr(cenario, recurso).ativo = False
     session.commit()
 

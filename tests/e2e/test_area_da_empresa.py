@@ -2,8 +2,8 @@ import uuid
 from datetime import timedelta
 
 import pytest
-
 from app.tempo import agora_local
+
 from tests.e2e.conftest import Barbearia, Servidores, requisicao
 
 

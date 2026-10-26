@@ -1,10 +1,9 @@
 from datetime import time
 from decimal import Decimal
 
-from sqlalchemy import select
-
 from app.database import SessionLocal, aplicar_migracoes, engine
 from app.models import Barbeiro, Base, Cliente, Disponibilidade, Produto, Servico
+from sqlalchemy import select
 
 DIAS_UTEIS_E_SABADO = range(0, 6)
 

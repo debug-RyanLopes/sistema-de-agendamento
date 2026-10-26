@@ -2,8 +2,8 @@ import re
 import uuid
 
 import pytest
-
 from app.tempo import agora_local, ultimo_dia_do_mes
+
 from tests.e2e.conftest import Barbearia, Servidores, requisicao
 
 

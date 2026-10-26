@@ -1,11 +1,11 @@
 import base64
 
 import pytest
+from app.config import Config
+from app.main_admin import criar_app
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.config import Config
-from app.main_admin import criar_app
 from tests.conftest import CABECALHO_ADMIN, SENHA_TESTE
 
 
@@ -44,8 +44,16 @@ def test_com_credencial_correta_retorna_200(app_admin: FastAPI, caminho: str):
         {"Authorization": "Bearer abc"},
         {"Authorization": ""},
     ],
-    ids=["senha", "usuario", "senha-vazia", "tudo-vazio", "base64-invalido", "sem-separador",
-         "outro-esquema", "vazio"],
+    ids=[
+        "senha",
+        "usuario",
+        "senha-vazia",
+        "tudo-vazio",
+        "base64-invalido",
+        "sem-separador",
+        "outro-esquema",
+        "vazio",
+    ],
 )
 def test_credenciais_invalidas_retornam_401(app_admin: FastAPI, cabecalho: dict):
     resposta = TestClient(app_admin).get("/clientes", headers=cabecalho)

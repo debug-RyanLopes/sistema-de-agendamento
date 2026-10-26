@@ -29,9 +29,7 @@ def cadastrar_disponibilidade(
     return disponibilidade_service.cadastrar_janela(sessao, barbeiro_id, dados)
 
 
-@router.get(
-    "/disponibilidades", response_model=list[DisponibilidadeOut], responses=ERRO_404
-)
+@router.get("/disponibilidades", response_model=list[DisponibilidadeOut], responses=ERRO_404)
 def listar_disponibilidades(barbeiro_id: int, sessao: SessaoDep) -> list[Disponibilidade]:
     return disponibilidade_service.listar_janelas(sessao, barbeiro_id)
 

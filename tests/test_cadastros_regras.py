@@ -3,14 +3,14 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
 from app.database import criar_motor
 from app.models import Barbeiro, Servico
 from app.schemas import AgendamentoIn
 from app.services import agendamento_service, barbeiro_service
 from app.tempo import agora_local
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, na_segunda
 from tests.test_migracao import _criar_banco_antigo, _migrar
@@ -249,9 +249,7 @@ def test_impacto_sem_data_de_cadastro_nao_inventa_tempo(session: Session, cenari
     assert impacto.cadastrado_em is None
 
 
-def test_impacto_nao_considera_agendamentos_de_outro_barbeiro(
-    session: Session, cenario: Cenario
-):
+def test_impacto_nao_considera_agendamentos_de_outro_barbeiro(session: Session, cenario: Cenario):
     _agendar(session, cenario, na_segunda(10))
     outro = Barbeiro(nome="Pedro Navalha", email="pedro@barbearia.com")
     session.add(outro)

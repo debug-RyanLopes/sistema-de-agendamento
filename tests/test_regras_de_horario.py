@@ -1,14 +1,14 @@
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
 from app.dependencies import get_agora
 from app.errors import DataForaDaJanelaError, HorarioInvalidoError
 from app.schemas import AgendamentoIn, AgendamentoPublicoIn
 from app.services import agendamento_service, disponibilidade_service
 from app.tempo import agora_local, ultimo_dia_do_mes
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, na_segunda
 
@@ -89,9 +89,7 @@ def test_slot_customizado_vale_para_a_criacao(session: Session, cenario: Cenario
     assert agendamento.inicio == na_segunda(10, 20)
 
 
-def test_api_devolve_422_e_nao_fragmenta_a_agenda(
-    client: TestClient, cenario_api: dict[str, int]
-):
+def test_api_devolve_422_e_nao_fragmenta_a_agenda(client: TestClient, cenario_api: dict[str, int]):
     torto = client.post("/agendamentos", json=_corpo_admin(cenario_api, "2030-01-07T10:07:00"))
     certo = client.post("/agendamentos", json=_corpo_admin(cenario_api, "2030-01-07T10:00:00"))
 

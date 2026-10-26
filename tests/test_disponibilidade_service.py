@@ -1,12 +1,12 @@
 from datetime import time
 
 import pytest
-from sqlalchemy.orm import Session
-
 from app.errors import RecursoNaoEncontradoError
 from app.models import Barbeiro, Disponibilidade
 from app.schemas import AgendamentoIn, DisponibilidadeIn
 from app.services import agendamento_service, disponibilidade_service
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, DOMINGO, SEGUNDA, na_segunda
 

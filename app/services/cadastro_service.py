@@ -36,9 +36,7 @@ def listar(
     return cadastros.listar(session, modelo, incluir_inativos)
 
 
-def obter(
-    session: Session, modelo: type[Entidade], identificador: int, rotulo: str
-) -> Entidade:
+def obter(session: Session, modelo: type[Entidade], identificador: int, rotulo: str) -> Entidade:
     entidade = cadastros.obter(session, modelo, identificador)
     if entidade is None:
         raise RecursoNaoEncontradoError(f"{rotulo} {identificador} não encontrado")

@@ -2,11 +2,11 @@ import logging
 from datetime import datetime
 
 import pytest
+from app.dependencies import get_notificador
+from app.services.notificacao_service import DadosConfirmacao, LogNotificador
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_notificador
-from app.services.notificacao_service import DadosConfirmacao, LogNotificador
 from tests.helpers import AGORA_FIXO, DOMINGO, NotificadorFalso, NotificadorQuebrado, na_segunda
 
 
