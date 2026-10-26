@@ -5,14 +5,14 @@ from datetime import time
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
-
 from app.database import aplicar_migracoes, criar_motor
 from app.dependencies import get_agora, get_db, get_notificador
 from app.main_admin import criar_app as criar_app_admin
 from app.main_cliente import criar_app as criar_app_cliente
 from app.models import Barbeiro, Base, Cliente, Disponibilidade, Servico
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
+
 from tests.conftest import CABECALHO_ADMIN, SENHA_TESTE
 from tests.helpers import AGORA_FIXO, NotificadorFalso, na_segunda
 

@@ -1,12 +1,14 @@
 import base64
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from app.config import Config
 from app.main_admin import criar_app
-from tests.conftest import CABECALHO_ADMIN, SENHA_TESTE
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine
+
+from tests.conftest import CABECALHO_ADMIN, SENHA_TESTE, configurar_dependencias
+from tests.helpers import NotificadorFalso
 
 
 def _basic(usuario: str, senha: str) -> dict[str, str]:
@@ -44,8 +46,16 @@ def test_com_credencial_correta_retorna_200(app_admin: FastAPI, caminho: str):
         {"Authorization": "Bearer abc"},
         {"Authorization": ""},
     ],
-    ids=["senha", "usuario", "senha-vazia", "tudo-vazio", "base64-invalido", "sem-separador",
-         "outro-esquema", "vazio"],
+    ids=[
+        "senha",
+        "usuario",
+        "senha-vazia",
+        "tudo-vazio",
+        "base64-invalido",
+        "sem-separador",
+        "outro-esquema",
+        "vazio",
+    ],
 )
 def test_credenciais_invalidas_retornam_401(app_admin: FastAPI, cabecalho: dict):
     resposta = TestClient(app_admin).get("/clientes", headers=cabecalho)
@@ -53,8 +63,8 @@ def test_credenciais_invalidas_retornam_401(app_admin: FastAPI, cabecalho: dict)
     assert resposta.status_code == 401
 
 
-def test_senha_com_dois_pontos_e_acentos_funciona():
-    aplicacao = criar_app("se:nha-çã")
+def test_senha_com_dois_pontos_e_acentos_funciona(engine: Engine):
+    aplicacao = configurar_dependencias(criar_app("se:nha-çã"), engine, NotificadorFalso())
 
     resposta = TestClient(aplicacao).get("/openapi.json", headers=_basic("admin", "se:nha-çã"))
 
@@ -78,11 +88,11 @@ def test_sem_senha_configurada_a_area_da_empresa_nao_sobe(monkeypatch: pytest.Mo
 
 
 def test_usa_a_senha_da_configuracao_quando_nao_recebe_argumento(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, engine: Engine
 ):
     monkeypatch.setattr("app.main_admin.CONFIG", Config(admin_password="da-configuracao"))
 
-    aplicacao = criar_app()
+    aplicacao = configurar_dependencias(criar_app(), engine, NotificadorFalso())
 
     cliente = TestClient(aplicacao)
     certa = cliente.get("/openapi.json", headers=_basic("admin", "da-configuracao"))

@@ -1,9 +1,6 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
 from app.errors import (
     ConflitoHorarioError,
     ForaDaDisponibilidadeError,
@@ -14,6 +11,9 @@ from app.errors import (
 from app.models import Agendamento, Barbeiro, Cliente, StatusAgendamento
 from app.schemas import AgendamentoIn, AgendamentoPublicoIn
 from app.services import agendamento_service, disponibilidade_service
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, DOMINGO, na_segunda
 
@@ -95,9 +95,7 @@ def test_cliente_inativo_nao_agenda_e_nada_e_gravado(session: Session, cenario: 
 
 
 @pytest.mark.parametrize("recurso", ["barbeiro", "servico_30"])
-def test_barbeiro_ou_servico_inativo_nao_agenda(
-    session: Session, cenario: Cenario, recurso: str
-):
+def test_barbeiro_ou_servico_inativo_nao_agenda(session: Session, cenario: Cenario, recurso: str):
     getattr(cenario, recurso).ativo = False
     session.commit()
 
@@ -157,7 +155,7 @@ def test_cancelar_com_codigo_correto(session: Session, cenario: Cenario):
 
     cancelado = agendamento_service.cancelar_com_codigo(
         session, agendamento.id, agendamento.codigo_cancelamento, AGORA_FIXO
-    )
+    )[0]
 
     assert cancelado.status == StatusAgendamento.CANCELADO
 
@@ -166,7 +164,7 @@ def test_cancelar_libera_o_horario(session: Session, cenario: Cenario):
     agendamento = _agendar(session, cenario)
     agendamento_service.cancelar_com_codigo(
         session, agendamento.id, agendamento.codigo_cancelamento, AGORA_FIXO
-    )
+    )[0]
 
     novo = _agendar(session, cenario)
 
@@ -177,7 +175,7 @@ def test_cancelar_com_codigo_errado_levanta_nao_encontrado(session: Session, cen
     agendamento = _agendar(session, cenario)
 
     with pytest.raises(RecursoNaoEncontradoError):
-        agendamento_service.cancelar_com_codigo(session, agendamento.id, "errado", AGORA_FIXO)
+        agendamento_service.cancelar_com_codigo(session, agendamento.id, "errado", AGORA_FIXO)[0]
 
     session.refresh(agendamento)
     assert agendamento.status == StatusAgendamento.AGENDADO
@@ -187,12 +185,12 @@ def test_codigo_com_caracteres_nao_ascii_nao_quebra(session: Session, cenario: C
     agendamento = _agendar(session, cenario)
 
     with pytest.raises(RecursoNaoEncontradoError):
-        agendamento_service.cancelar_com_codigo(session, agendamento.id, "código-ç", AGORA_FIXO)
+        agendamento_service.cancelar_com_codigo(session, agendamento.id, "código-ç", AGORA_FIXO)[0]
 
 
 def test_agendamento_inexistente_tem_a_mesma_resposta_do_codigo_errado(session: Session):
     with pytest.raises(RecursoNaoEncontradoError):
-        agendamento_service.cancelar_com_codigo(session, 999, "qualquer", AGORA_FIXO)
+        agendamento_service.cancelar_com_codigo(session, 999, "qualquer", AGORA_FIXO)[0]
 
 
 def test_agendamento_criado_pela_empresa_nao_cancela_por_codigo(
@@ -207,15 +205,17 @@ def test_agendamento_criado_pela_empresa_nao_cancela_por_codigo(
     agendamento, _ = agendamento_service.criar(session, dados, AGORA_FIXO)
 
     with pytest.raises(RecursoNaoEncontradoError):
-        agendamento_service.cancelar_com_codigo(session, agendamento.id, "", AGORA_FIXO)
+        agendamento_service.cancelar_com_codigo(session, agendamento.id, "", AGORA_FIXO)[0]
 
 
 def test_cancelar_duas_vezes_e_idempotente(session: Session, cenario: Cenario):
     agendamento = _agendar(session, cenario)
     codigo = agendamento.codigo_cancelamento
-    agendamento_service.cancelar_com_codigo(session, agendamento.id, codigo, AGORA_FIXO)
+    agendamento_service.cancelar_com_codigo(session, agendamento.id, codigo, AGORA_FIXO)[0]
 
-    repetido = agendamento_service.cancelar_com_codigo(session, agendamento.id, codigo, AGORA_FIXO)
+    repetido = agendamento_service.cancelar_com_codigo(
+        session, agendamento.id, codigo, AGORA_FIXO
+    )[0]
 
     assert repetido.status == StatusAgendamento.CANCELADO
 
@@ -226,7 +226,7 @@ def test_nao_cancela_horario_que_ja_passou(session: Session, cenario: Cenario):
     with pytest.raises(HorarioPassadoError):
         agendamento_service.cancelar_com_codigo(
             session, agendamento.id, agendamento.codigo_cancelamento, na_segunda(10)
-        )
+        )[0]
 
     session.refresh(agendamento)
     assert agendamento.status == StatusAgendamento.AGENDADO
@@ -245,7 +245,7 @@ def test_barbeiros_disponiveis_lista_somente_ativos_com_horarios(
     )
 
     assert [barbeiro.nome for barbeiro, _ in disponiveis] == ["João Barbeiro"]
-    assert len(disponiveis[0][1]) == 35
+    assert len(disponiveis[0][1]) == 18  # 9h-18h de meia em meia hora (corte de 30 min)
 
 
 def test_barbeiros_disponiveis_vazio_em_dia_sem_janela(session: Session, cenario: Cenario):

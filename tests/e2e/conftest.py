@@ -43,6 +43,9 @@ def requisicao(base: str, metodo: str, caminho: str, corpo: dict | None = None, 
             return resposta.status, json.loads(resposta.read() or "null")
     except urllib.error.HTTPError as erro:
         return erro.code, None
+    except urllib.error.URLError:
+        # servidor ainda não aceitou conexões: quem chama decide se tenta de novo
+        return 0, None
 
 
 def _aguardar(base: str) -> None:
@@ -123,9 +126,11 @@ def _abrir(navegador, erros: list[str], **opcoes):
     pagina.on("pageerror", lambda erro: erros.append(f"pageerror: {erro}"))
     pagina.on(
         "console",
-        lambda msg: erros.append(f"console: {msg.text}")
-        if msg.type == "error" and "status of 4" not in msg.text
-        else None,
+        lambda msg: (
+            erros.append(f"console: {msg.text}")
+            if msg.type == "error" and "status of 4" not in msg.text
+            else None
+        ),
     )
     pagina.on("dialog", lambda dialogo: dialogo.accept())
     return contexto, pagina
@@ -142,12 +147,14 @@ def pagina_cliente(navegador, servidores: Servidores, erros_de_js: list[str]) ->
 
 @pytest.fixture
 def pagina_empresa(navegador, servidores: Servidores, erros_de_js: list[str]) -> Iterator:
-    contexto, pagina = _abrir(
-        navegador,
-        erros_de_js,
-        http_credentials={"username": "admin", "password": SENHA},
-    )
+    """Entra pela página de login (cookie de sessão), como a empresa faz de verdade."""
+    contexto, pagina = _abrir(navegador, erros_de_js)
     pagina.goto(servidores.empresa + "/")
+    pagina.wait_for_url("**/entrar")
+    pagina.fill("#login", "admin")
+    pagina.fill("#senha", SENHA)
+    pagina.click("#form-entrar button[type=submit]")
+    pagina.wait_for_url(servidores.empresa + "/")
     yield pagina
     contexto.close()
     assert erros_de_js == []
@@ -166,11 +173,20 @@ def barbearia(servidores: Servidores) -> Barbearia:
     """Barbeiro e serviço novos (nomes únicos), com agenda aberta o dia todo, todos os dias."""
     sufixo = uuid.uuid4().hex[:6]
     base = servidores.empresa
-    _, barbeiro = requisicao(base, "POST", "/barbeiros",
-                             {"nome": f"Barbeiro {sufixo}", "email": f"b{sufixo}@e2e.com"})
-    _, servico = requisicao(base, "POST", "/servicos",
-                            {"nome": f"Corte {sufixo}", "duracao_minutos": 15, "preco": "45.00"})
+    _, barbeiro = requisicao(
+        base, "POST", "/barbeiros", {"nome": f"Barbeiro {sufixo}", "email": f"b{sufixo}@e2e.com"}
+    )
+    _, servico = requisicao(
+        base,
+        "POST",
+        "/servicos",
+        {"nome": f"Corte {sufixo}", "duracao_minutos": 15, "preco": "45.00"},
+    )
     for dia in range(7):
-        requisicao(base, "POST", f"/barbeiros/{barbeiro['id']}/disponibilidades",
-                   {"dia_semana": dia, "hora_inicio": "00:00:00", "hora_fim": "23:59:00"})
+        requisicao(
+            base,
+            "POST",
+            f"/barbeiros/{barbeiro['id']}/disponibilidades",
+            {"dia_semana": dia, "hora_inicio": "00:00:00", "hora_fim": "23:59:00"},
+        )
     return Barbearia(barbeiro["nome"], servico["nome"], barbeiro["id"], servico["id"])

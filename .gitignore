@@ -1,5 +1,20 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 .coverage
+htmlcov/
 *.db
+*.db-wal
+*.db-shm
+.env
+
+# Ferramentas pessoais do assistente de código: não fazem parte do produto.
+# Fica versionado apenas o histórico do processo (.claude/sdd) e o agente do projeto.
+.claude/*
+!.claude/sdd/
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/fastapi-developer.md
+.sc/
+.taskspec/

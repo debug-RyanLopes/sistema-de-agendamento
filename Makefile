@@ -7,6 +7,10 @@ PYTHON ?= python3
 PY := .venv/bin/python
 endif
 
+# Variáveis do .env (se existir) valem como padrão; a linha de comando sobrepõe.
+-include .env
+export
+
 HOST ?= 127.0.0.1
 PORTA_CLIENTE ?= 8000
 PORTA_ADMIN ?= 8001
@@ -17,7 +21,7 @@ export PORTA_CLIENTE
 export PORTA_ADMIN
 
 .DEFAULT_GOAL := help
-.PHONY: help install run run-cliente run-admin seed test e2e cov lint clean
+.PHONY: help install run run-cliente run-admin seed test e2e cov lint format clean
 
 help:
 	@echo Comandos disponiveis:
@@ -30,11 +34,13 @@ help:
 	@echo   make test         - roda os testes
 	@echo   make e2e          - testes de navegador (precisa do Google Chrome)
 	@echo   make cov          - roda os testes com cobertura
-	@echo   make lint         - roda o ruff
+	@echo   make lint         - roda o ruff (lint e formatacao)
+	@echo   make format       - formata o codigo com o ruff
 	@echo   make clean        - remove caches e o arquivo .coverage
 	@echo Opcoes: PORTA_CLIENTE=9000 PORTA_ADMIN=9001 ADMIN_PASSWORD=outra make run
 
 .venv:
+	$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 'Este projeto exige Python 3.10 ou superior; use PYTHON=python3.13 make install')"
 	$(PYTHON) -m venv .venv
 
 install: .venv
@@ -59,10 +65,14 @@ e2e: install
 	$(PY) -m pytest -m e2e
 
 cov: install
-	$(PY) -m pytest --cov=app --cov-report=term-missing
+	$(PY) -m pytest --cov
 
 lint: install
-	$(PY) -m ruff check app scripts tests --select E,F,I,UP,B --line-length 99
+	$(PY) -m ruff check
+	$(PY) -m ruff format --check app scripts tests
+
+format: install
+	$(PY) -m ruff format app scripts tests
 
 clean:
 	$(PY) -c "import pathlib, shutil; [shutil.rmtree(p, True) for d in ('app', 'scripts', 'tests') for p in pathlib.Path(d).rglob('__pycache__')]; [shutil.rmtree(d, True) for d in ('.pytest_cache', '.ruff_cache')]; pathlib.Path('.coverage').unlink(missing_ok=True)"

@@ -1,0 +1,33 @@
+[project]
+name = "sistema-de-agendamento"
+version = "3.0.0"
+description = "Sistema de agendamento para barbearias: área do cliente e área da empresa"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+readme = "README.md"
+dynamic = ["dependencies"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+src = ["app", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -m 'not e2e'"
+markers = [
+    "e2e: testes de navegador (Playwright + Chrome); rode com `make e2e`",
+]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 95

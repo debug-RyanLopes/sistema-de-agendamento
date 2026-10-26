@@ -1,0 +1,8 @@
+# Troque pelos seus domínios. O Caddy obtém e renova os certificados sozinho.
+agenda.exemplo.com.br {
+    reverse_proxy app:8000
+}
+
+painel.exemplo.com.br {
+    reverse_proxy app:8001
+}

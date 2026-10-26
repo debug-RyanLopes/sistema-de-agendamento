@@ -1,0 +1,3 @@
+.entrar { max-width: 420px; margin: 32px auto; }
+.entrar form { display: grid; gap: 12px; }
+.entrar code { background: var(--fundo); padding: 1px 6px; border-radius: 4px; }
