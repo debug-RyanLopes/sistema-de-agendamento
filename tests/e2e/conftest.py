@@ -147,12 +147,14 @@ def pagina_cliente(navegador, servidores: Servidores, erros_de_js: list[str]) ->
 
 @pytest.fixture
 def pagina_empresa(navegador, servidores: Servidores, erros_de_js: list[str]) -> Iterator:
-    contexto, pagina = _abrir(
-        navegador,
-        erros_de_js,
-        http_credentials={"username": "admin", "password": SENHA},
-    )
+    """Entra pela página de login (cookie de sessão), como a empresa faz de verdade."""
+    contexto, pagina = _abrir(navegador, erros_de_js)
     pagina.goto(servidores.empresa + "/")
+    pagina.wait_for_url("**/entrar")
+    pagina.fill("#login", "admin")
+    pagina.fill("#senha", SENHA)
+    pagina.click("#form-entrar button[type=submit]")
+    pagina.wait_for_url(servidores.empresa + "/")
     yield pagina
     contexto.close()
     assert erros_de_js == []

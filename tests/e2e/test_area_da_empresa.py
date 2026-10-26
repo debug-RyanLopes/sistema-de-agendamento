@@ -89,6 +89,7 @@ def test_cadastra_edita_e_desativa_cliente(pagina_empresa):
     _linha(pagina_empresa, "clientes", email).get_by_role("button", name="Desativar").click()
     _linha(pagina_empresa, "clientes", email).wait_for(state="detached")
     pagina_empresa.check("#aba-clientes input[type=checkbox]")
+    _linha(pagina_empresa, "clientes", email).wait_for()
     assert _linha(pagina_empresa, "clientes", email).count() == 1
 
 

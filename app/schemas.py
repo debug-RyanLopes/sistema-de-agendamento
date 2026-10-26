@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import CENTAVOS, StatusAgendamento
+from app.models import CENTAVOS, Origem, PapelUsuario, StatusAgendamento
 
 
 def _validar_email(valor: str) -> str:
@@ -50,7 +50,7 @@ Dinheiro = Annotated[
 
 def _sem_fuso(valor: datetime) -> datetime:
     if valor.tzinfo is not None:
-        raise ValueError("use o horário de Manaus, sem fuso")
+        raise ValueError("use o horário local da barbearia, sem fuso")
     return valor
 
 
@@ -61,11 +61,19 @@ class ErroOut(BaseModel):
     detail: str
 
 
+ERRO_401 = {401: {"model": ErroOut, "description": "Não autenticado"}}
+ERRO_403 = {403: {"model": ErroOut, "description": "Sem permissão para esta operação"}}
 ERRO_404 = {404: {"model": ErroOut, "description": "Recurso não encontrado"}}
-ERRO_409 = {409: {"model": ErroOut, "description": "Conflito de horário com outro agendamento"}}
+ERRO_409 = {
+    409: {
+        "model": ErroOut,
+        "description": "Conflito: horário ocupado, cadastro duplicado ou status incompatível",
+    }
+}
 ERRO_422 = {
     422: {"description": "Dados inválidos, recurso inativo, fora da disponibilidade ou no passado"}
 }
+ERRO_429 = {429: {"model": ErroOut, "description": "Muitas requisições; aguarde um pouco"}}
 
 
 class _Saida(BaseModel):
@@ -74,6 +82,9 @@ class _Saida(BaseModel):
 
 class AtivoIn(BaseModel):
     ativo: bool
+
+
+# --- cadastros -------------------------------------------------------------------------
 
 
 class ClienteIn(BaseModel):
@@ -88,6 +99,7 @@ class ClienteOut(_Saida):
     email: str
     telefone: str
     ativo: bool
+    anonimizado_em: datetime | None = None
 
 
 class BarbeiroIn(BaseModel):
@@ -137,6 +149,9 @@ class ProdutoOut(_Saida):
     ativo: bool
 
 
+# --- disponibilidade e bloqueios -------------------------------------------------------
+
+
 class DisponibilidadeIn(BaseModel):
     dia_semana: int = Field(ge=0, le=6, description="0 = segunda-feira ... 6 = domingo")
     hora_inicio: time = Field(examples=["09:00:00"])
@@ -157,12 +172,42 @@ class DisponibilidadeOut(_Saida):
     hora_fim: time
 
 
+class BloqueioIn(BaseModel):
+    barbeiro_id: int | None = Field(
+        default=None, description="Vazio = vale para toda a barbearia (feriado)"
+    )
+    data: date
+    hora_inicio: time | None = Field(default=None, description="Vazio = dia inteiro")
+    hora_fim: time | None = None
+    motivo: str | None = Field(default=None, max_length=100, examples=["Feriado municipal"])
+
+    @model_validator(mode="after")
+    def _horas_coerentes(self) -> "BloqueioIn":
+        if (self.hora_inicio is None) != (self.hora_fim is None):
+            raise ValueError("informe hora_inicio e hora_fim juntos, ou nenhum dos dois")
+        if self.hora_inicio is not None and self.hora_inicio >= self.hora_fim:
+            raise ValueError("hora_inicio deve ser anterior a hora_fim")
+        return self
+
+
+class BloqueioOut(_Saida):
+    id: int
+    barbeiro_id: int | None
+    data: date
+    hora_inicio: time | None
+    hora_fim: time | None
+    motivo: str | None
+
+
+# --- agendamentos ----------------------------------------------------------------------
+
+
 class AgendamentoIn(BaseModel):
     cliente_id: int
     barbeiro_id: int
     servico_id: int
     inicio: HorarioLocal = Field(
-        description="Horário de Manaus (UTC-4), sem fuso", examples=["2030-01-07T10:00:00"]
+        description="Horário local da barbearia, sem fuso", examples=["2030-01-07T10:00:00"]
     )
 
 
@@ -174,6 +219,22 @@ class AgendamentoOut(_Saida):
     inicio: datetime
     fim: datetime
     status: StatusAgendamento
+    origem: Origem | None = None
+    criado_em: datetime | None = None
+    cancelado_em: datetime | None = None
+    cancelado_por: Origem | None = None
+    motivo_cancelamento: str | None = None
+
+
+class StatusIn(BaseModel):
+    status: StatusAgendamento = Field(
+        description="Só 'concluido' ou 'nao_compareceu', para atendimentos que já passaram",
+        examples=["concluido"],
+    )
+
+
+class ReagendamentoIn(BaseModel):
+    inicio: HorarioLocal = Field(examples=["2030-01-07T11:00:00"])
 
 
 class PaginaAgendamentosOut(BaseModel):
@@ -190,14 +251,19 @@ class HorariosLivresOut(BaseModel):
     horarios: list[datetime]
 
 
+# --- área do cliente -------------------------------------------------------------------
+
+
 class AgendamentoPublicoIn(BaseModel):
     nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
     email: Email = Field(examples=["carlos@exemplo.com"])
     telefone: Telefone = Field(examples=["(92) 91234-5678"])
-    barbeiro_id: int
+    barbeiro_id: int | None = Field(
+        default=None, description="Vazio = qualquer barbeiro com o horário livre"
+    )
     servico_id: int
     inicio: HorarioLocal = Field(
-        description="Horário de Manaus (UTC-4), sem fuso", examples=["2030-01-07T10:00:00"]
+        description="Horário local da barbearia, sem fuso", examples=["2030-01-07T10:00:00"]
     )
 
 
@@ -221,6 +287,10 @@ class CancelamentoOut(BaseModel):
     status: StatusAgendamento
 
 
+class ReagendamentoPublicoIn(CancelamentoIn):
+    inicio: HorarioLocal = Field(examples=["2030-01-07T11:00:00"])
+
+
 class BarbeiroDisponivelOut(BaseModel):
     id: int
     nome: str
@@ -231,6 +301,36 @@ class DisponibilidadeDiaOut(BaseModel):
     data: date
     servico_id: int
     barbeiros: list[BarbeiroDisponivelOut]
+
+
+class SolicitacaoLinkIn(BaseModel):
+    email: Email
+
+
+class MeuAgendamentoOut(BaseModel):
+    id: int
+    codigo_cancelamento: str | None
+    barbeiro: str
+    servico: str
+    inicio: datetime
+    fim: datetime
+    status: StatusAgendamento
+
+
+class MeusAgendamentosOut(BaseModel):
+    email: str
+    agendamentos: list[MeuAgendamentoOut]
+
+
+class ConfiguracaoOut(BaseModel):
+    fuso: str
+    slot_minutos: int
+    intervalo_minutos: int
+    max_agendamentos_ativos_por_cliente: int
+    versao: str
+
+
+# --- gestão ----------------------------------------------------------------------------
 
 
 class AgendamentoFuturoOut(BaseModel):
@@ -248,7 +348,104 @@ class ImpactoDesativacaoOut(BaseModel):
     cadastrado_em: datetime | None
     dias_na_empresa: int | None
     atendimentos_realizados: int
+    faltas: int = 0
     total_futuros: int
     valor_futuro: Dinheiro
     proximo_atendimento: datetime | None
     agendamentos_futuros: list[AgendamentoFuturoOut]
+
+
+class ResumoBarbeiroOut(BaseModel):
+    barbeiro_id: int
+    nome: str
+    agendados: int
+    concluidos: int
+    cancelados: int
+    faltas: int
+    receita: Dinheiro
+    minutos_ocupados: int
+    minutos_disponiveis: int
+    ocupacao: float = Field(description="Fração dos minutos disponíveis que foram ocupados")
+
+
+class ResumoOut(BaseModel):
+    desde: date
+    ate: date
+    total_agendamentos: int
+    receita: Dinheiro
+    receita_produtos: Dinheiro
+    barbeiros: list[ResumoBarbeiroOut]
+
+
+# --- vendas ----------------------------------------------------------------------------
+
+
+class VendaItemIn(BaseModel):
+    produto_id: int
+    quantidade: int = Field(gt=0, le=1000)
+
+
+class VendaIn(BaseModel):
+    itens: list[VendaItemIn] = Field(min_length=1)
+    observacao: str | None = Field(default=None, max_length=200)
+
+
+class VendaItemOut(_Saida):
+    produto_id: int
+    quantidade: int
+    preco_unitario: Dinheiro
+
+
+class VendaOut(BaseModel):
+    id: int
+    criado_em: datetime
+    total: Dinheiro
+    observacao: str | None
+    itens: list[VendaItemOut]
+
+
+# --- usuários e sessão -----------------------------------------------------------------
+
+
+class LoginIn(BaseModel):
+    login: str = Field(min_length=1, max_length=100, examples=["admin"])
+    senha: str = Field(min_length=1, max_length=200)
+
+
+def _validar_login(valor: str) -> str:
+    valor = valor.strip().lower()
+    if not re.fullmatch(r"[a-z0-9._@-]{2,100}", valor):
+        raise ValueError("login deve ter 2 a 100 caracteres: letras, números, ponto, _, @ ou -")
+    return valor
+
+
+Login = Annotated[str, AfterValidator(_validar_login)]
+
+
+class UsuarioIn(BaseModel):
+    nome: str = Field(min_length=2, max_length=100, examples=["Maria Dona"])
+    login: Login = Field(examples=["maria"])
+    senha: str = Field(min_length=8, max_length=200)
+    papel: PapelUsuario = PapelUsuario.BARBEIRO
+    barbeiro_id: int | None = Field(
+        default=None, description="Obrigatório para o papel 'barbeiro'"
+    )
+
+    @model_validator(mode="after")
+    def _barbeiro_precisa_de_cadastro(self) -> "UsuarioIn":
+        if self.papel == PapelUsuario.BARBEIRO and self.barbeiro_id is None:
+            raise ValueError("usuário com papel 'barbeiro' precisa de barbeiro_id")
+        return self
+
+
+class SenhaIn(BaseModel):
+    senha: str = Field(min_length=8, max_length=200)
+
+
+class UsuarioOut(_Saida):
+    id: int
+    nome: str
+    login: str
+    papel: PapelUsuario
+    barbeiro_id: int | None
+    ativo: bool

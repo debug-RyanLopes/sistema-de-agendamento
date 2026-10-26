@@ -1,26 +1,56 @@
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Query, Response
 
+from app.calendario import gerar_ics
 from app.config import CONFIG
-from app.dependencies import AgoraDep, NotificadorDep, SessaoDep
+from app.dependencies import AgoraDep, ChaveDep, NotificadorDep, SessaoDep
+from app.errors import RecursoNaoEncontradoError, TransicaoInvalidaError
 from app.models import Servico
+from app.repositories import agendamentos as repositorio_agendamentos
+from app.repositories import cadastros
 from app.schemas import (
     ERRO_404,
     ERRO_409,
     ERRO_422,
+    ERRO_429,
     AgendamentoPublicoIn,
     BarbeiroDisponivelOut,
     CancelamentoIn,
     CancelamentoOut,
     ConfirmacaoOut,
     DisponibilidadeDiaOut,
+    MeuAgendamentoOut,
+    MeusAgendamentosOut,
+    ReagendamentoPublicoIn,
     ServicoPublicoOut,
+    SolicitacaoLinkIn,
 )
-from app.services import agendamento_service, cadastro_service, disponibilidade_service
-from app.services.notificacao_service import enviar_sem_falhar
+from app.services import (
+    agendamento_service,
+    auth_service,
+    cadastro_service,
+    disponibilidade_service,
+)
+from app.services.notificacao_service import DadosAgendamento, notificar_sem_falhar
 
 router = APIRouter(tags=["cliente"])
+
+FINALIDADE_LINK = "meus-agendamentos"
+VALIDADE_LINK_SEGUNDOS = 30 * 60
+
+
+def _confirmacao(agendamento, dados: DadosAgendamento) -> ConfirmacaoOut:
+    return ConfirmacaoOut(
+        id=agendamento.id,
+        codigo_cancelamento=agendamento.codigo_cancelamento,
+        barbeiro=dados.barbeiro,
+        servico=dados.servico,
+        inicio=agendamento.inicio,
+        fim=agendamento.fim,
+        preco=dados.preco,
+        status=agendamento.status,
+    )
 
 
 @router.get("/servicos", response_model=list[ServicoPublicoOut], summary="Serviços disponíveis")
@@ -54,8 +84,9 @@ def disponibilidade(
     "/agendamentos",
     response_model=ConfirmacaoOut,
     status_code=201,
-    responses={**ERRO_404, **ERRO_409, **ERRO_422},
+    responses={**ERRO_404, **ERRO_409, **ERRO_422, **ERRO_429},
     summary="Marcar agendamento",
+    description="Sem `barbeiro_id`, escolhe o barbeiro com o horário livre e menos agenda no dia.",
 )
 def agendar(
     dados: AgendamentoPublicoIn,
@@ -65,29 +96,149 @@ def agendar(
     notificador: NotificadorDep,
 ) -> ConfirmacaoOut:
     agendamento, confirmacao = agendamento_service.criar_publico(sessao, dados, agora)
-    tarefas.add_task(enviar_sem_falhar, notificador, confirmacao)
-    return ConfirmacaoOut(
-        id=agendamento.id,
-        codigo_cancelamento=agendamento.codigo_cancelamento,
-        barbeiro=confirmacao.barbeiro,
-        servico=confirmacao.servico,
-        inicio=agendamento.inicio,
-        fim=agendamento.fim,
-        preco=confirmacao.preco,
-        status=agendamento.status,
-    )
+    tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
+    return _confirmacao(agendamento, confirmacao)
 
 
 @router.post(
     "/agendamentos/{agendamento_id}/cancelar",
     response_model=CancelamentoOut,
-    responses={**ERRO_404, **ERRO_422},
+    responses={**ERRO_404, **ERRO_422, **ERRO_429},
     summary="Cancelar o próprio agendamento com o código",
 )
 def cancelar(
-    agendamento_id: int, dados: CancelamentoIn, sessao: SessaoDep, agora: AgoraDep
+    agendamento_id: int,
+    dados: CancelamentoIn,
+    tarefas: BackgroundTasks,
+    sessao: SessaoDep,
+    agora: AgoraDep,
+    notificador: NotificadorDep,
 ) -> CancelamentoOut:
-    agendamento = agendamento_service.cancelar_com_codigo(
+    agendamento, cancelou = agendamento_service.cancelar_com_codigo(
         sessao, agendamento_id, dados.codigo, agora
     )
+    if cancelou:
+        aviso = agendamento_service.dados_para_notificacao(sessao, agendamento)
+        tarefas.add_task(notificar_sem_falhar, notificador, "enviar_cancelamento", aviso)
     return CancelamentoOut(id=agendamento.id, status=agendamento.status)
+
+
+@router.post(
+    "/agendamentos/{agendamento_id}/reagendar",
+    response_model=ConfirmacaoOut,
+    responses={**ERRO_404, **ERRO_409, **ERRO_422, **ERRO_429},
+    summary="Remarcar o próprio agendamento com o código",
+)
+def reagendar(
+    agendamento_id: int,
+    dados: ReagendamentoPublicoIn,
+    tarefas: BackgroundTasks,
+    sessao: SessaoDep,
+    agora: AgoraDep,
+    notificador: NotificadorDep,
+) -> ConfirmacaoOut:
+    agendamento, confirmacao = agendamento_service.reagendar_com_codigo(
+        sessao, agendamento_id, dados.codigo, dados.inicio, agora
+    )
+    tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
+    return _confirmacao(agendamento, confirmacao)
+
+
+@router.get(
+    "/agendamentos/{agendamento_id}/ics",
+    response_class=Response,
+    responses={200: {"content": {"text/calendar": {}}}, **ERRO_404},
+    summary="Baixar o agendamento como evento de calendário (.ics)",
+)
+def baixar_ics(
+    agendamento_id: int, sessao: SessaoDep, agora: AgoraDep, codigo: str = Query(max_length=64)
+) -> Response:
+    agendamento = agendamento_service.obter_com_codigo(sessao, agendamento_id, codigo)
+    dados = agendamento_service.dados_para_notificacao(sessao, agendamento)
+    return Response(
+        gerar_ics(dados, agendamento.fim, CONFIG.timezone, agora),
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="agendamento-{agendamento.id}.ics"'
+        },
+    )
+
+
+@router.post(
+    "/meus-agendamentos/solicitar",
+    status_code=202,
+    responses=ERRO_429,
+    summary="Receber por e-mail um link para ver e cancelar os próprios agendamentos",
+    description="Responde 202 sempre, exista ou não o e-mail, para não revelar cadastros.",
+)
+def solicitar_link(
+    dados: SolicitacaoLinkIn,
+    tarefas: BackgroundTasks,
+    sessao: SessaoDep,
+    notificador: NotificadorDep,
+    chave: ChaveDep,
+) -> dict[str, str]:
+    if cadastros.obter_cliente_por_email(sessao, dados.email) is not None:
+        token = auth_service.gerar_token(
+            chave, FINALIDADE_LINK, dados.email, VALIDADE_LINK_SEGUNDOS
+        )
+        url = f"{CONFIG.url_publica}/?token={token}"
+        tarefas.add_task(
+            notificar_sem_falhar, notificador, "enviar_link", dados.email, "Seus agendamentos", url
+        )
+    return {"detail": "se o e-mail estiver cadastrado, o link chega em instantes"}
+
+
+def _email_do_token(chave: str, token: str) -> str:
+    email = auth_service.ler_token(chave, FINALIDADE_LINK, token)
+    if email is None:
+        raise RecursoNaoEncontradoError("link inválido ou expirado; peça outro")
+    return email
+
+
+@router.get(
+    "/meus-agendamentos",
+    response_model=MeusAgendamentosOut,
+    responses=ERRO_404,
+    summary="Agendamentos futuros do cliente do link",
+)
+def meus_agendamentos(
+    sessao: SessaoDep, agora: AgoraDep, chave: ChaveDep, token: str = Query(max_length=400)
+) -> MeusAgendamentosOut:
+    email = _email_do_token(chave, token)
+    return MeusAgendamentosOut(
+        email=email,
+        agendamentos=[
+            MeuAgendamentoOut(
+                id=agendamento.id,
+                codigo_cancelamento=agendamento.codigo_cancelamento,
+                barbeiro=barbeiro,
+                servico=servico,
+                inicio=agendamento.inicio,
+                fim=agendamento.fim,
+                status=agendamento.status,
+            )
+            for agendamento, barbeiro, servico in agendamento_service.meus_agendamentos(
+                sessao, email, agora
+            )
+        ],
+    )
+
+
+@router.post(
+    "/meus-dados/exclusao",
+    status_code=204,
+    responses={**ERRO_404, **ERRO_409},
+    summary="Apagar os próprios dados pessoais (LGPD) usando o link recebido",
+)
+def excluir_meus_dados(
+    sessao: SessaoDep, agora: AgoraDep, chave: ChaveDep, token: str = Query(max_length=400)
+) -> Response:
+    email = _email_do_token(chave, token)
+    cliente = cadastros.obter_cliente_por_email(sessao, email)
+    if cliente is None:
+        raise RecursoNaoEncontradoError("cadastro não encontrado")
+    if repositorio_agendamentos.contar_ativos_do_cliente(sessao, cliente.id, agora):
+        raise TransicaoInvalidaError("cancele seus agendamentos futuros antes de apagar os dados")
+    cadastro_service.anonimizar_cliente(sessao, cliente.id, agora)
+    return Response(status_code=204)

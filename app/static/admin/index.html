@@ -9,9 +9,15 @@
 </head>
 <body>
   <header class="topo">
-    <div class="conteudo">
-      <h1>Painel da Empresa</h1>
-      <p class="sub">Agendamentos e cadastros &middot; horários de Manaus (UTC-4) &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
+    <div class="conteudo cabecalho">
+      <div>
+        <h1>Painel da Empresa</h1>
+        <p class="sub">Agendamentos e cadastros &middot; horários de <span data-fuso>Manaus</span> &middot; <a href="/docs" target="_blank" rel="noopener">Swagger</a></p>
+      </div>
+      <div class="sessao">
+        <span id="usuario-atual" class="ajuda"></span>
+        <button id="sair" type="button" class="pequeno">Sair</button>
+      </div>
     </div>
   </header>
 
@@ -20,21 +26,42 @@
 
     <nav class="abas" aria-label="Seções">
       <button type="button" class="aba ativa" data-aba="agendamentos">Agendamentos</button>
-      <button type="button" class="aba" data-aba="clientes">Clientes</button>
-      <button type="button" class="aba" data-aba="barbeiros">Barbeiros</button>
-      <button type="button" class="aba" data-aba="servicos">Serviços</button>
-      <button type="button" class="aba" data-aba="produtos">Produtos</button>
+      <button type="button" class="aba" data-aba="agenda">Agenda do dia</button>
+      <button type="button" class="aba" data-aba="clientes" data-dono>Clientes</button>
+      <button type="button" class="aba" data-aba="barbeiros" data-dono>Barbeiros</button>
+      <button type="button" class="aba" data-aba="servicos" data-dono>Serviços</button>
+      <button type="button" class="aba" data-aba="produtos" data-dono>Produtos</button>
+      <button type="button" class="aba" data-aba="vendas" data-dono>Vendas</button>
+      <button type="button" class="aba" data-aba="bloqueios">Bloqueios</button>
+      <button type="button" class="aba" data-aba="relatorios" data-dono>Relatórios</button>
+      <button type="button" class="aba" data-aba="usuarios" data-dono>Usuários</button>
     </nav>
+
+    <section id="aba-agenda" class="painel" hidden>
+      <div class="barra">
+        <label>Dia <input id="agenda-data" type="date"></label>
+        <button id="agenda-hoje" type="button" class="pequeno">Hoje</button>
+        <button id="agenda-anterior" type="button" class="pequeno" aria-label="Dia anterior">&larr;</button>
+        <button id="agenda-proximo" type="button" class="pequeno" aria-label="Dia seguinte">&rarr;</button>
+        <span id="agenda-info" class="ajuda"></span>
+      </div>
+      <div id="agenda-colunas" class="agenda"></div>
+    </section>
 
     <section id="aba-agendamentos" class="painel">
       <form id="form-filtro" class="grade-form">
         <label>Barbeiro <select id="filtro-barbeiro"></select></label>
-        <label>Cliente <select id="filtro-cliente"></select></label>
+        <label>Cliente
+          <input id="filtro-cliente" list="lista-clientes" placeholder="nome, e-mail ou telefone" autocomplete="off">
+          <datalist id="lista-clientes"></datalist>
+        </label>
         <label>Dia <input id="filtro-data" type="date"></label>
         <label>Status
           <select id="filtro-status">
             <option value="">Todos</option>
             <option value="agendado">Agendado</option>
+            <option value="concluido">Concluído</option>
+            <option value="nao_compareceu">Faltou</option>
             <option value="cancelado">Cancelado</option>
           </select>
         </label>
@@ -42,6 +69,7 @@
           <label class="inline"><input id="filtro-futuros" type="checkbox" checked> Só de hoje em diante</label>
           <button type="submit" class="primario pequeno">Filtrar</button>
           <button type="button" id="limpar-filtro" class="pequeno">Limpar</button>
+          <button type="button" id="exportar-csv" class="pequeno">Exportar CSV</button>
         </div>
       </form>
 
@@ -59,7 +87,7 @@
       <div class="tabela-rolagem">
         <table>
           <thead>
-            <tr><th>#</th><th>Início</th><th>Fim</th><th>Cliente</th><th>Barbeiro</th><th>Serviço</th><th>Status</th><th></th></tr>
+            <tr><th>#</th><th>Início</th><th>Fim</th><th>Cliente</th><th>Barbeiro</th><th>Serviço</th><th>Origem</th><th>Status</th><th></th></tr>
           </thead>
           <tbody id="lista-agendamentos"></tbody>
         </table>
@@ -70,6 +98,10 @@
     <section id="aba-barbeiros" class="painel" hidden></section>
     <section id="aba-servicos" class="painel" hidden></section>
     <section id="aba-produtos" class="painel" hidden></section>
+    <section id="aba-vendas" class="painel" hidden></section>
+    <section id="aba-bloqueios" class="painel" hidden></section>
+    <section id="aba-relatorios" class="painel" hidden></section>
+    <section id="aba-usuarios" class="painel" hidden></section>
   </main>
 
   <dialog id="dialogo-desativar" aria-labelledby="dialogo-titulo">
@@ -79,6 +111,20 @@
       <div class="botoes-dialogo">
         <button id="dialogo-voltar" type="submit" value="voltar">Voltar</button>
         <button id="dialogo-confirmar" type="submit" value="confirmar" class="perigo">Desativar mesmo assim</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dialogo-remarcar" aria-labelledby="remarcar-titulo">
+    <form method="dialog">
+      <h2 id="remarcar-titulo">Remarcar agendamento</h2>
+      <div class="grade-form">
+        <label>Novo dia <input id="remarcar-data" type="date" required></label>
+        <label>Novo horário <input id="remarcar-hora" type="time" required step="900"></label>
+      </div>
+      <div class="botoes-dialogo">
+        <button type="submit" value="voltar">Voltar</button>
+        <button type="submit" value="confirmar" class="primario">Remarcar</button>
       </div>
     </form>
   </dialog>

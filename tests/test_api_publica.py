@@ -15,6 +15,13 @@ ROTAS_ESPERADAS = {
     "/disponibilidade",
     "/agendamentos",
     "/agendamentos/{agendamento_id}/cancelar",
+    "/agendamentos/{agendamento_id}/reagendar",
+    "/agendamentos/{agendamento_id}/ics",
+    "/meus-agendamentos/solicitar",
+    "/meus-agendamentos",
+    "/meus-dados/exclusao",
+    "/configuracao",
+    "/saude",
 }
 
 

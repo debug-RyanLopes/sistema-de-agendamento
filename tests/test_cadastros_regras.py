@@ -56,11 +56,11 @@ def test_editar_mantendo_o_proprio_email_e_permitido(client: TestClient):
     assert resposta.json()["nome"] == "Ana Maria"
 
 
-def test_barbeiros_podem_repetir_email(client: TestClient):
+def test_barbeiros_nao_podem_repetir_email(client: TestClient):
     barbeiro = {"nome": "João Barbeiro", "email": "joao@barbearia.com"}
 
     assert client.post("/barbeiros", json=barbeiro).status_code == 201
-    assert client.post("/barbeiros", json=barbeiro).status_code == 201
+    assert client.post("/barbeiros", json={**barbeiro, "nome": "Outro"}).status_code == 409
 
 
 def test_indice_unico_e_criado_no_banco_migrado(tmp_path: Path):
@@ -211,7 +211,7 @@ def test_impacto_lista_futuros_soma_valor_e_aponta_o_proximo(session: Session, c
 def test_impacto_ignora_cancelados(session: Session, cenario: Cenario):
     _agendar(session, cenario, na_segunda(10))
     cancelado = agendamento_service.listar(session)[0]
-    agendamento_service.cancelar(session, cancelado.id)
+    agendamento_service.cancelar(session, cancelado.id, AGORA_FIXO)[0]
 
     impacto = barbeiro_service.impacto_desativacao(session, cenario.barbeiro.id, AGORA_FIXO)
 

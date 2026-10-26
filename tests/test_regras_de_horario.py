@@ -187,4 +187,4 @@ def test_entrada_com_fuso_e_rejeitada(client: TestClient, cenario_api: dict[str,
     )
 
     assert resposta.status_code == 422
-    assert "Manaus" in resposta.text
+    assert "sem fuso" in resposta.text

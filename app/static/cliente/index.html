@@ -11,12 +11,23 @@
   <header class="topo">
     <div class="conteudo">
       <h1>Barbearia</h1>
-      <p class="sub">Marque seu horário em poucos passos &middot; horários de Manaus (UTC-4)</p>
+      <p class="sub">Marque seu horário em poucos passos &middot; horários de <span data-fuso>Manaus</span></p>
     </div>
   </header>
 
   <main class="conteudo">
     <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden></div>
+
+    <section id="meus-agendamentos" class="painel solto" hidden>
+      <h2>Meus agendamentos</h2>
+      <p class="ajuda" id="meus-email"></p>
+      <ul id="meus-lista" class="lista-meus"></ul>
+      <div class="acoes">
+        <button id="meus-fechar" type="button">Fazer um novo agendamento</button>
+        <button id="meus-apagar" type="button" class="perigo">Apagar meus dados pessoais</button>
+      </div>
+      <p class="ajuda">Apagar os dados remove nome, e-mail e telefone do cadastro (LGPD). Só é possível sem agendamentos futuros.</p>
+    </section>
 
     <section id="confirmacao" class="painel solto confirmacao" aria-live="polite" hidden>
       <h2 id="confirmacao-titulo">Agendamento confirmado</h2>
@@ -27,11 +38,21 @@
         <div><dt>Quando</dt><dd id="conf-quando"></dd></div>
         <div><dt>Valor</dt><dd id="conf-preco"></dd></div>
       </dl>
-      <p class="ajuda">Guarde o código abaixo: ele permite cancelar este agendamento mesmo depois de fechar a página.</p>
+      <p class="ajuda">Guarde o código abaixo: ele permite cancelar ou remarcar este agendamento mesmo depois de fechar a página.</p>
       <p class="codigo" id="conf-codigo"></p>
       <div class="acoes">
+        <a id="conf-ics" class="botao-link" download>Adicionar à minha agenda (.ics)</a>
+        <button id="remarcar-abrir" type="button">Remarcar</button>
         <button id="cancelar-agendamento" type="button" class="perigo">Cancelar este agendamento</button>
         <button id="novo-agendamento" type="button">Fazer outro agendamento</button>
+      </div>
+      <div id="remarcar" class="remarcar" hidden>
+        <h3>Escolha o novo dia e horário</h3>
+        <div class="grade-form">
+          <label>Novo dia <input id="remarcar-data" type="date"></label>
+          <button id="remarcar-ver" type="button" class="primario">Ver horários</button>
+        </div>
+        <div id="remarcar-horarios" class="horarios" role="group" aria-label="Novos horários"></div>
       </div>
     </section>
 
@@ -44,6 +65,7 @@
             <label>E-mail <input id="email" name="email" type="email" autocomplete="email" required></label>
             <label>Telefone <input id="telefone" name="telefone" type="tel" autocomplete="tel" required minlength="10" maxlength="20" placeholder="(92) 91234-5678"></label>
           </div>
+          <label class="inline"><input id="lembrar" type="checkbox" checked> Lembrar meus dados neste navegador</label>
         </fieldset>
 
         <fieldset>
@@ -69,15 +91,19 @@
     </section>
 
     <details class="cancelar-codigo">
-      <summary>Já tem um agendamento? Cancele com o código</summary>
+      <summary>Já tem um agendamento? Cancele com o código ou receba um link por e-mail</summary>
       <form id="form-cancelar-codigo" class="grade-form">
         <label>Número <input id="codigo-id" type="number" min="1" required></label>
         <label>Código <input id="codigo-valor" required maxlength="64" autocomplete="off"></label>
         <button type="submit" class="perigo">Cancelar agendamento</button>
       </form>
+      <form id="form-link" class="grade-form">
+        <label>Seu e-mail <input id="link-email" type="email" required autocomplete="email"></label>
+        <button type="submit">Receber link dos meus agendamentos</button>
+      </form>
     </details>
 
-    <p class="rodape">A confirmação por e-mail é simulada: aparece no log do servidor.</p>
+    <p class="rodape" id="rodape">Você recebe a confirmação e um lembrete por e-mail.</p>
   </main>
 
   <script type="module" src="app.js"></script>

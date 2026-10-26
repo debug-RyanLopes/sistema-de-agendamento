@@ -13,7 +13,7 @@ export async function api(metodo, caminho, corpo) {
     } catch {
       dados = null;
     }
-    return { ok: resposta.ok, status: resposta.status, dados };
+    return { ok: resposta.ok, status: resposta.status, dados, cabecalhos: resposta.headers };
   } catch {
     return { ok: false, status: 0, dados: { detail: "Não foi possível falar com a API. Ela está rodando?" } };
   }
@@ -85,14 +85,62 @@ export function elemento(tag, propriedades = {}, ...filhos) {
   return no;
 }
 
-export const FUSO = "America/Manaus";
+// Fuso e grade de horários vêm do servidor (GET /configuracao); estes são só o padrão
+// até a resposta chegar.
+export const configuracao = { fuso: "America/Manaus", slot_minutos: 15, intervalo_minutos: 0 };
+
+export async function carregarConfiguracao() {
+  const resposta = await api("GET", "/configuracao");
+  if (resposta.ok) Object.assign(configuracao, resposta.dados);
+  document.querySelectorAll("[data-fuso]").forEach((no) => {
+    no.textContent = descreverFuso(configuracao.fuso);
+  });
+  return configuracao;
+}
+
+export function descreverFuso(fuso) {
+  try {
+    const partes = new Intl.DateTimeFormat("pt-BR", { timeZone: fuso, timeZoneName: "shortOffset" }).formatToParts(new Date());
+    const nome = partes.find((parte) => parte.type === "timeZoneName")?.value ?? "";
+    return `${fuso.split("/").pop().replace("_", " ")} (${nome})`;
+  } catch {
+    return fuso;
+  }
+}
 
 export function dataLocalHoje() {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: FUSO });
+  return new Date().toLocaleDateString("sv-SE", { timeZone: configuracao.fuso });
+}
+
+export function agoraLocalIso() {
+  // "AAAA-MM-DDTHH:MM" no fuso da barbearia, para comparar com os horários da API.
+  const partes = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: configuracao.fuso, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).format(new Date());
+  return partes.replace(" ", "T");
 }
 
 export function ultimoDiaDoMes(iso) {
   const [ano, mes] = iso.split("-").map(Number);
   const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
   return `${iso.slice(0, 8)}${String(ultimo).padStart(2, "0")}`;
+}
+
+export const STATUS_ROTULO = {
+  agendado: "agendado",
+  cancelado: "cancelado",
+  concluido: "concluído",
+  nao_compareceu: "faltou",
+};
+
+export function ocupado(botao, texto) {
+  // Evita duplo clique: desabilita enquanto a requisição está em andamento.
+  const original = botao.textContent;
+  botao.disabled = true;
+  if (texto) botao.textContent = texto;
+  return () => {
+    botao.disabled = false;
+    botao.textContent = original;
+  };
 }

@@ -35,6 +35,7 @@ def impacto_desativacao(
             max((agora - barbeiro.criado_em).days, 0) if barbeiro.criado_em else None
         ),
         atendimentos_realizados=agendamentos.contar_realizados(session, barbeiro_id, agora),
+        faltas=agendamentos.contar_faltas(session, barbeiro_id),
         total_futuros=len(futuros),
         valor_futuro=sum((item.preco for item in futuros), Decimal("0")).quantize(CENTAVOS),
         proximo_atendimento=futuros[0].inicio if futuros else None,

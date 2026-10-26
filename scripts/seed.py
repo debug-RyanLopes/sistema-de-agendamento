@@ -1,8 +1,9 @@
-from datetime import time
+from datetime import time, timedelta
 from decimal import Decimal
 
 from app.database import SessionLocal, aplicar_migracoes, engine
-from app.models import Barbeiro, Base, Cliente, Disponibilidade, Produto, Servico
+from app.models import Barbeiro, Base, Bloqueio, Cliente, Disponibilidade, Produto, Servico
+from app.tempo import agora_local
 from sqlalchemy import select
 
 DIAS_UTEIS_E_SABADO = range(0, 6)
@@ -41,8 +42,25 @@ def popular() -> None:
             for barbeiro in barbeiros
             for dia in DIAS_UTEIS_E_SABADO
         )
+        # Exemplos de bloqueio: almoço do João amanhã e a barbearia fechada daqui a 7 dias.
+        hoje = agora_local().date()
+        session.add_all(
+            [
+                Bloqueio(
+                    barbeiro_id=barbeiros[0].id,
+                    data=hoje + timedelta(days=1),
+                    hora_inicio=time(12, 0),
+                    hora_fim=time(13, 0),
+                    motivo="Almoço",
+                ),
+                Bloqueio(data=hoje + timedelta(days=7), motivo="Feriado (exemplo)"),
+            ]
+        )
         session.commit()
-        print("Dados de exemplo criados: 1 cliente, 2 barbeiros, 3 serviços, 2 produtos.")
+        print(
+            "Dados de exemplo criados: 1 cliente, 2 barbeiros, 3 serviços, 2 produtos, "
+            "2 bloqueios. O usuário 'admin' é criado na primeira subida da área da empresa."
+        )
 
 
 if __name__ == "__main__":
