@@ -9,7 +9,7 @@ from app.errors import HorarioInvalidoError
 from app.models import CENTAVOS, Barbeiro, StatusAgendamento
 from app.repositories import agendamentos, cadastros
 from app.schemas import ResumoBarbeiroOut, ResumoOut
-from app.services import disponibilidade_service, venda_service
+from app.services import agendamento_service, disponibilidade_service, venda_service
 
 MAXIMO_DIAS = 92
 
@@ -101,9 +101,11 @@ def agendamentos_csv(
     escritor.writerow(
         ["id", "inicio", "fim", "cliente", "barbeiro", "servico", "preco", "status", "origem"]
     )
-    for agendamento, cliente, barbeiro, servico, preco in agendamentos.listar_detalhado(
+    linhas = agendamentos.listar_detalhado(
         session, barbeiro_id, cliente_id, dia, status, desde, ate
-    ):
+    )
+    combos = agendamentos.servicos_dos_agendamentos(session, [linha[0].id for linha in linhas])
+    for agendamento, cliente, barbeiro, servico, preco in linhas:
         escritor.writerow(
             [
                 agendamento.id,
@@ -111,7 +113,7 @@ def agendamentos_csv(
                 agendamento.fim.isoformat(sep=" ", timespec="minutes"),
                 cliente,
                 barbeiro,
-                servico,
+                agendamento_service.descrever_servicos(combos.get(agendamento.id), servico),
                 f"{preco:.2f}".replace(".", ","),
                 agendamento.status.value,
                 agendamento.origem.value if agendamento.origem else "",

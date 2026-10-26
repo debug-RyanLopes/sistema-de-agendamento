@@ -1,5 +1,7 @@
 import secrets
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,7 @@ from app.errors import (
     TransicaoInvalidaError,
 )
 from app.models import (
+    CENTAVOS,
     STATUS_FINAIS_DO_PASSADO,
     Agendamento,
     Barbeiro,
@@ -59,16 +62,62 @@ def _validar_horario(
         raise ConflitoHorarioError("o barbeiro já tem um agendamento nesse horário")
 
 
+SEPARADOR_DE_SERVICOS = " + "
+
+
+@dataclass(frozen=True, slots=True)
+class ResumoServicos:
+    """O que foi contratado num agendamento: nomes, ids, duração e preço somados."""
+
+    ids: list[int]
+    nomes: list[str]
+    duracao_minutos: int
+    preco: Decimal
+
+    @property
+    def descricao(self) -> str:
+        return SEPARADOR_DE_SERVICOS.join(self.nomes)
+
+
+def _resumir(servicos: list[Servico]) -> ResumoServicos:
+    return ResumoServicos(
+        ids=[servico.id for servico in servicos],
+        nomes=[servico.nome for servico in servicos],
+        duracao_minutos=sum(servico.duracao_minutos for servico in servicos),
+        # Objetos recém-criados podem trazer float até o primeiro commit; normaliza.
+        preco=sum((Decimal(str(s.preco)) for s in servicos), Decimal("0")).quantize(CENTAVOS),
+    )
+
+
+def resumo_dos_servicos(session: Session, agendamento: Agendamento) -> ResumoServicos:
+    """Serviços do agendamento com o preço da época; agendamentos antigos usam o serviço único."""
+    itens = agendamentos.servicos_dos_agendamentos(session, [agendamento.id]).get(agendamento.id)
+    if itens:
+        return ResumoServicos(
+            ids=[item[0] for item in itens],
+            nomes=[item[1] for item in itens],
+            duracao_minutos=sum(item[3] for item in itens),
+            preco=sum((item[2] for item in itens), Decimal("0")).quantize(CENTAVOS),
+        )
+    servico = cadastro_service.obter(session, Servico, agendamento.servico_id, "serviço")
+    return ResumoServicos(
+        ids=[servico.id],
+        nomes=[servico.nome],
+        duracao_minutos=int((agendamento.fim - agendamento.inicio).total_seconds() // 60),
+        preco=agendamento.preco if agendamento.preco is not None else servico.preco,
+    )
+
+
 def _dados(
-    agendamento: Agendamento, cliente: Cliente, barbeiro: Barbeiro, servico: Servico
+    agendamento: Agendamento, cliente: Cliente, barbeiro: Barbeiro, resumo: ResumoServicos
 ) -> DadosAgendamento:
     return DadosAgendamento(
         email=cliente.email,
         cliente=cliente.nome,
         barbeiro=barbeiro.nome,
-        servico=servico.nome,
+        servico=resumo.descricao,
         inicio=agendamento.inicio,
-        preco=servico.preco,
+        preco=resumo.preco,
         agendamento_id=agendamento.id,
         codigo_cancelamento=agendamento.codigo_cancelamento,
     )
@@ -78,14 +127,15 @@ def _validar_e_gravar(
     session: Session,
     cliente: Cliente,
     barbeiro: Barbeiro,
-    servico: Servico,
+    servicos: list[Servico],
     inicio: datetime,
     agora: datetime,
     codigo_cancelamento: str | None,
     slot_minutos: int | None,
     origem: Origem,
 ) -> tuple[Agendamento, DadosAgendamento]:
-    fim = inicio + timedelta(minutes=servico.duracao_minutos)
+    resumo = _resumir(servicos)
+    fim = inicio + timedelta(minutes=resumo.duracao_minutos)
     agendamentos.travar_agenda_do_barbeiro(session, barbeiro.id)
     _validar_horario(session, barbeiro, inicio, fim, agora, slot_minutos)
     agendamento = agendamentos.adicionar(
@@ -93,17 +143,19 @@ def _validar_e_gravar(
         Agendamento(
             cliente_id=cliente.id,
             barbeiro_id=barbeiro.id,
-            servico_id=servico.id,
+            servico_id=servicos[0].id,
             inicio=inicio,
             fim=fim,
             status=StatusAgendamento.AGENDADO,
             codigo_cancelamento=codigo_cancelamento,
             criado_em=agora,
             origem=origem,
+            preco=resumo.preco,
         ),
     )
+    agendamentos.adicionar_servicos(session, agendamento, servicos)
     session.commit()
-    return agendamento, _dados(agendamento, cliente, barbeiro, servico)
+    return agendamento, _dados(agendamento, cliente, barbeiro, resumo)
 
 
 def criar(
@@ -112,12 +164,12 @@ def criar(
     iniciar_escrita(session)
     cliente = cadastro_service.obter_ativo(session, Cliente, dados.cliente_id, "cliente")
     barbeiro = cadastro_service.obter_ativo(session, Barbeiro, dados.barbeiro_id, "barbeiro")
-    servico = cadastro_service.obter_ativo(session, Servico, dados.servico_id, "serviço")
+    servicos = disponibilidade_service.servicos_escolhidos(session, dados.servicos)
     return _validar_e_gravar(
         session,
         cliente,
         barbeiro,
-        servico,
+        servicos,
         dados.inicio,
         agora,
         None,
@@ -163,10 +215,14 @@ def criar_publico(
         disponibilidade_service.validar_janela_de_datas(
             dados.inicio.date(), agora, aceitar_passado=True
         )
-        servico = cadastro_service.obter_ativo(session, Servico, dados.servico_id, "serviço")
+        servicos = disponibilidade_service.servicos_escolhidos(session, dados.servicos)
         if dados.barbeiro_id is None:
             barbeiro = disponibilidade_service.escolher_barbeiro(
-                session, servico, dados.inicio, agora, slot_minutos or CONFIG.slot_minutes
+                session,
+                disponibilidade_service.duracao_total(servicos),
+                dados.inicio,
+                agora,
+                slot_minutos or CONFIG.slot_minutes,
             )
         else:
             barbeiro = cadastro_service.obter_ativo(
@@ -179,7 +235,7 @@ def criar_publico(
             session,
             cliente,
             barbeiro,
-            servico,
+            servicos,
             dados.inicio,
             agora,
             codigo,
@@ -194,8 +250,7 @@ def criar_publico(
 def dados_para_notificacao(session: Session, agendamento: Agendamento) -> DadosAgendamento:
     cliente = cadastro_service.obter(session, Cliente, agendamento.cliente_id, "cliente")
     barbeiro = cadastro_service.obter(session, Barbeiro, agendamento.barbeiro_id, "barbeiro")
-    servico = cadastro_service.obter(session, Servico, agendamento.servico_id, "serviço")
-    return _dados(agendamento, cliente, barbeiro, servico)
+    return _dados(agendamento, cliente, barbeiro, resumo_dos_servicos(session, agendamento))
 
 
 def _cancelar(agendamento: Agendamento, agora: datetime, por: Origem, motivo: str | None) -> bool:
@@ -307,16 +362,16 @@ def _reagendar(
     if agendamento.inicio <= agora:
         raise HorarioPassadoError("não é possível remarcar um horário que já passou")
     barbeiro = cadastro_service.obter_ativo(session, Barbeiro, agendamento.barbeiro_id, "barbeiro")
-    servico = cadastro_service.obter(session, Servico, agendamento.servico_id, "serviço")
     cliente = cadastro_service.obter(session, Cliente, agendamento.cliente_id, "cliente")
-    fim = novo_inicio + timedelta(minutes=servico.duracao_minutos)
+    resumo = resumo_dos_servicos(session, agendamento)
+    fim = novo_inicio + timedelta(minutes=resumo.duracao_minutos)
     agendamentos.travar_agenda_do_barbeiro(session, barbeiro.id)
     _validar_horario(session, barbeiro, novo_inicio, fim, agora, slot_minutos, agendamento.id)
     agendamento.inicio = novo_inicio
     agendamento.fim = fim
     agendamento.lembrete_enviado_em = None
     session.commit()
-    return agendamento, _dados(agendamento, cliente, barbeiro, servico)
+    return agendamento, _dados(agendamento, cliente, barbeiro, resumo)
 
 
 def reagendar(
@@ -357,12 +412,42 @@ def meus_agendamentos(
     cliente = cadastros.obter_cliente_por_email(session, email)
     if cliente is None:
         return []
+    futuros = agendamentos.listar_futuros_do_cliente(session, cliente.id, agora)
+    combos = agendamentos.servicos_dos_agendamentos(session, [a.id for a, *_ in futuros])
     return [
-        (agendamento, barbeiro, servico)
-        for agendamento, barbeiro, servico, _preco in agendamentos.listar_futuros_do_cliente(
-            session, cliente.id, agora
-        )
+        (agendamento, barbeiro, descrever_servicos(combos.get(agendamento.id), servico))
+        for agendamento, barbeiro, servico, _preco in futuros
     ]
+
+
+def servicos_de_varios(
+    session: Session, itens: list[Agendamento]
+) -> dict[int, tuple[list[int], Decimal]]:
+    """Por agendamento: (ids dos serviços, preço), em uma consulta só; antigos usam a reserva."""
+    combos = agendamentos.servicos_dos_agendamentos(session, [item.id for item in itens])
+    precos_reserva = {
+        servico.id: servico.preco
+        for servico in cadastros.listar(session, Servico, incluir_inativos=True)
+    }
+    resultado = {}
+    for item in itens:
+        linhas = combos.get(item.id)
+        if linhas:
+            preco = sum((linha[2] for linha in linhas), Decimal("0"))
+            resultado[item.id] = ([linha[0] for linha in linhas], preco.quantize(CENTAVOS))
+        else:
+            preco = item.preco if item.preco is not None else precos_reserva.get(item.servico_id)
+            resultado[item.id] = ([item.servico_id], preco)
+    return resultado
+
+
+def descrever_servicos(itens: list[tuple[int, str, Decimal, int]] | None, reserva: str) -> str:
+    """'Corte de cabelo + Barba' a partir das linhas do combo, ou o nome do serviço único."""
+    return SEPARADOR_DE_SERVICOS.join(item[1] for item in itens) if itens else reserva
+
+
+def ids_dos_servicos(itens: list[tuple[int, str, Decimal, int]] | None, reserva: int) -> list[int]:
+    return [item[0] for item in itens] if itens else [reserva]
 
 
 def obter(session: Session, agendamento_id: int) -> Agendamento:

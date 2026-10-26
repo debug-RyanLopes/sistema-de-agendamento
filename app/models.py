@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from app.tempo import agora_local
 
 CENTAVOS = Decimal("0.01")
+TAMANHO_NOME = 120
 
 
 class Base(DeclarativeBase):
@@ -69,7 +70,7 @@ class Cliente(Base):
     __table_args__ = (Index("uq_clientes_email", "email", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(TAMANHO_NOME))
     email: Mapped[str] = mapped_column(String(254))
     telefone: Mapped[str] = mapped_column(String(20))
     ativo: Mapped[bool] = _coluna_ativo()
@@ -81,7 +82,7 @@ class Barbeiro(Base):
     __table_args__ = (Index("uq_barbeiros_email", "email", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(TAMANHO_NOME))
     email: Mapped[str] = mapped_column(String(254))
     ativo: Mapped[bool] = _coluna_ativo()
     criado_em: Mapped[datetime | None] = mapped_column(default=agora_local)
@@ -91,7 +92,7 @@ class Servico(Base):
     __tablename__ = "servicos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(TAMANHO_NOME))
     duracao_minutos: Mapped[int]
     preco: Mapped[Decimal] = mapped_column(Dinheiro)
     ativo: Mapped[bool] = _coluna_ativo()
@@ -101,7 +102,7 @@ class Produto(Base):
     __tablename__ = "produtos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(TAMANHO_NOME))
     preco: Mapped[Decimal] = mapped_column(Dinheiro)
     estoque: Mapped[int] = mapped_column(default=0)
     ativo: Mapped[bool] = _coluna_ativo()
@@ -155,6 +156,21 @@ class Agendamento(Base):
     cancelado_por: Mapped[Origem | None] = mapped_column(Enum(Origem), default=None)
     motivo_cancelamento: Mapped[str | None] = mapped_column(String(200), default=None)
     lembrete_enviado_em: Mapped[datetime | None] = mapped_column(default=None)
+    # Soma dos serviços no momento da marcação (serviço antigo sem este campo usa o preço atual).
+    preco: Mapped[Decimal | None] = mapped_column(Dinheiro, default=None)
+
+
+class AgendamentoServico(Base):
+    """Serviços de um agendamento (um ou mais, ex.: Corte + Barba), com o preço da época."""
+
+    __tablename__ = "agendamento_servicos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agendamento_id: Mapped[int] = mapped_column(ForeignKey("agendamentos.id"), index=True)
+    servico_id: Mapped[int] = mapped_column(ForeignKey("servicos.id"))
+    ordem: Mapped[int] = mapped_column(default=0)
+    preco: Mapped[Decimal] = mapped_column(Dinheiro)
+    duracao_minutos: Mapped[int]
 
 
 class Usuario(Base):
@@ -162,7 +178,7 @@ class Usuario(Base):
     __table_args__ = (Index("uq_usuarios_login", "login", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(TAMANHO_NOME))
     login: Mapped[str] = mapped_column(String(100))
     senha_hash: Mapped[str] = mapped_column(String(255))
     papel: Mapped[PapelUsuario] = mapped_column(Enum(PapelUsuario), default=PapelUsuario.DONO)

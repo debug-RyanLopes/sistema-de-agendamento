@@ -77,6 +77,7 @@ COLUNAS_ADICIONADAS = {
         ("cancelado_por", "VARCHAR(10)"),
         ("motivo_cancelamento", "VARCHAR(200)"),
         ("lembrete_enviado_em", "DATETIME"),
+        ("preco", "FLOAT"),
     ],
 }
 

@@ -53,7 +53,7 @@ def test_janelas_adjacentes_oferecem_o_horario_na_fronteira(
 ):
     livres = _livres(client, barbeiro_com_duas_janelas)
 
-    assert "11:45" in livres
+    assert "11:30" in livres and "12:00" in livres  # 11:30-12:00 e 12:00-12:30 cruzam a fronteira
     assert _marcar(client, barbeiro_com_duas_janelas, na_segunda(11, 45)).status_code == 201
 
 
@@ -66,7 +66,7 @@ def test_janelas_separadas_continuam_separadas(client: TestClient, cenario_api: 
 
     livres = _livres(client, cenario_api)
 
-    assert "11:45" not in livres
+    assert "12:00" not in livres
     assert "11:30" in livres
     assert _marcar(client, cenario_api, na_segunda(11, 45)).status_code == 422
 
@@ -188,6 +188,6 @@ def test_intervalo_entre_atendimentos(
     assert "10:30" not in livres  # 15 minutos de respiro depois do atendimento das 10:00-10:30
     assert "10:45" in livres
     assert "09:30" not in livres  # 09:30-10:00 encostaria no início; precisa do intervalo
-    assert "09:15" in livres
+    assert "09:00" in livres
     assert _marcar(client, cenario_api, na_segunda(10, 30)).status_code == 409
     assert _marcar(client, cenario_api, na_segunda(10, 45)).status_code == 201

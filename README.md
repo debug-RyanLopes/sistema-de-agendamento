@@ -7,7 +7,7 @@ Sistema de agendamento para barbearias, feito com **FastAPI** e **SQLAlchemy** (
 
 | Área | Porta | Quem usa | O que faz |
 |------|-------|----------|-----------|
-| **Cliente** | 8000 | Quem quer cortar o cabelo | Informa nome, e-mail e telefone, escolhe serviço e dia, vê os barbeiros com horários livres (ou "qualquer barbeiro"), marca, recebe confirmação e lembrete por e-mail, remarca ou cancela com um código, baixa o evento `.ics` e acessa "meus agendamentos" por um link enviado ao e-mail |
+| **Cliente** | 8000 | Quem quer cortar o cabelo | Informa nome, e-mail e telefone (validados na hora, com máscara), marca um ou mais serviços (ex.: Corte + Barba, com duração e valor somados), escolhe o dia, vê os barbeiros com horários livres do tamanho do serviço (ou "qualquer barbeiro"), marca, recebe confirmação e lembrete por e-mail, remarca ou cancela com um código, baixa o evento `.ics` e acessa "meus agendamentos" por um link enviado ao e-mail |
 | **Empresa** | 8001 | A barbearia | Login e senha com papéis **dono** e **barbeiro**. Agenda do dia por barbeiro, agendamentos com status (agendado, concluído, faltou, cancelado), cadastros com busca e paginação, disponibilidade semanal, folgas e feriados, vendas de produtos com baixa de estoque, relatório de ocupação e receita, exportação CSV e usuários |
 
 Projeto de estudo, criado para portfólio, e organizado como um produto: proteção contra abuso na área pública, notificações reais por SMTP, auditoria de cancelamentos, LGPD (anonimização de dados) e empacotamento com Docker.
@@ -57,9 +57,10 @@ No celular (layout responsivo):
 - **Proteção da área pública:** limite de agendamentos ativos por e-mail e por telefone, limite de requisições por IP, mensagens que não revelam cadastros.
 - **Notificações:** confirmação, cancelamento, lembrete (thread em segundo plano) e link mágico, por SMTP ou no log em desenvolvimento, sempre com o e-mail mascarado no log.
 - **Agenda rica:** janelas que se encostam valem como uma só, bloqueios por data (folga, feriado, almoço), intervalo entre atendimentos, remarcação e "qualquer barbeiro".
+- **Combos e grade por duração:** um agendamento pode ter vários serviços; os horários oferecidos avançam pela duração total (um corte de 30 min mostra 09:00, 09:30...; um combo de 60 min mostra 09:00, 10:00...), e cada opção já mostra início e fim.
 - **LGPD:** o cliente apaga os próprios dados pelo link mágico e a empresa pode anonimizar um cadastro; o histórico de agendamentos permanece sem dados pessoais.
 - **Front-end em HTML, CSS e JavaScript puros**, sem Node nem etapa de build, com tema claro/escuro e layout responsivo.
-- **Testes automatizados:** 356 testes de API e serviços (cobertura mínima de 95%, hoje 98%) e 20 testes de navegador com Playwright. Lint e formatação com `ruff`.
+- **Testes automatizados:** 383 testes de API e serviços (cobertura mínima de 95%, hoje 98%) e 22 testes de navegador com Playwright. Lint e formatação com `ruff`.
 - **Dinheiro com `Decimal`**, nunca `float`: preços trafegam como texto (`"45.00"`).
 - **Fuso configurável** (`TIMEZONE`, padrão Manaus): o navegador lê o fuso do servidor em `GET /configuracao`.
 
@@ -116,7 +117,7 @@ Na primeira subida da área da empresa o usuário `admin` (papel dono) é criado
 Com `make seed` e `make run` já executados:
 
 1. Abra a **área do Cliente** (porta 8000) e a **área da Empresa** (porta 8001) em duas abas. Entre na empresa com `admin` / `admin123`.
-2. No **Cliente**, preencha seus dados, escolha serviço e dia (o seed abre segunda a sábado, 9h às 18h) e clique em *Ver barbeiros disponíveis*. Com dois barbeiros livres aparece também o cartão **Qualquer barbeiro**.
+2. No **Cliente**, preencha seus dados (o telefone ganha máscara e e-mail inválido avisa na hora), marque um ou mais serviços (o seed traz Corte, Barba, Bigode, Acabamento/Pezinho, Sobrancelhas, Hidratação e Luzes), escolha o dia (o seed abre segunda a sábado, 9h às 18h) e clique em *Ver barbeiros disponíveis*. Os horários aparecem no tamanho do serviço (ex.: 10:00 – 10:50 para Corte + Barba). Com dois barbeiros livres aparece também o cartão **Qualquer barbeiro**.
 3. Escolha um horário e confirme. Anote o **número** e o **código**. Experimente *Remarcar* e *Adicionar à minha agenda (.ics)*.
 4. Na **Empresa**, aba *Agendamentos*, o agendamento aparece (a lista atualiza a cada 10 s). A aba *Agenda do dia* mostra a coluna de cada barbeiro, com bloqueios.
 5. Tente marcar o mesmo horário de novo: ele já não aparece. Marque 3 horários com o mesmo e-mail e tente o quarto: a área pública recusa.
@@ -140,8 +141,8 @@ make e2e      # 20 testes de navegador (precisa do Google Chrome ou `playwright 
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/servicos` | Serviços ativos |
-| GET | `/disponibilidade?data=AAAA-MM-DD&servico_id=` | Barbeiros ativos com horários livres no dia |
-| POST | `/agendamentos` | Marcar (nome, e-mail, telefone, serviço, início; `barbeiro_id` opcional = qualquer barbeiro) |
+| GET | `/disponibilidade?data=AAAA-MM-DD&servico_id=` ou `&servico_ids=1&servico_ids=2` | Barbeiros ativos com horários livres no dia, já com duração e preço do combo |
+| POST | `/agendamentos` | Marcar (nome, e-mail, telefone, `servico_id` ou `servico_ids`, início; `barbeiro_id` opcional = qualquer barbeiro) |
 | POST | `/agendamentos/{id}/cancelar` | Cancelar com o código |
 | POST | `/agendamentos/{id}/reagendar` | Remarcar com o código |
 | GET | `/agendamentos/{id}/ics?codigo=` | Evento de calendário |
@@ -150,7 +151,9 @@ make e2e      # 20 testes de navegador (precisa do Google Chrome ou `playwright 
 | POST | `/meus-dados/exclusao?token=` | Anonimiza o próprio cadastro (LGPD) |
 | GET | `/configuracao`, `/saude` | Fuso, grade de horários e verificação de saúde |
 
-**Datas:** o cliente só enxerga de hoje até o último dia do mês corrente, no navegador e no servidor (422). Horários começam em múltiplos de `SLOT_MINUTES`.
+**Datas e horários:** o cliente só enxerga de hoje até o último dia do mês corrente, no navegador e no servidor (422). Os horários oferecidos avançam pela duração total dos serviços (arredondada ao `SLOT_MINUTES`) a partir do início de cada janela, mais o horário logo depois de cada atendimento já marcado, para não deixar buracos. A API aceita qualquer início em múltiplo de `SLOT_MINUTES` que caiba na disponibilidade.
+
+**Validação:** nome de 2 a 120 caracteres; e-mail com formato válido (guardado em minúsculas); telefone brasileiro com DDD, celular com 9 ou fixo começando em 2 a 5, com ou sem máscara (guardado só com dígitos). O navegador avisa embaixo do campo antes de enviar, e o servidor valida de novo (422 com o motivo).
 
 **Limites:** no máximo `MAX_AGENDAMENTOS_ATIVOS_POR_CLIENTE` horários futuros por e-mail ou telefone (padrão 3) e `LIMITE_REQUISICOES_POR_MINUTO` escritas por IP (padrão 60, 429 ao exceder). Cliente inativo recebe uma mensagem genérica.
 
@@ -240,7 +243,7 @@ Decisões de projeto:
 - WhatsApp não está integrado; a interface `Notificador` deixa isso a um adaptador de distância.
 - O limite de requisições é por processo; com várias réplicas use o proxy ou um Redis.
 - A migração leve cobre só o SQLite. Em PostgreSQL o esquema nasce completo pelo `create_all`; mudanças futuras de esquema pedem Alembic.
-- Um serviço por agendamento; sem múltiplas unidades (multi-tenant).
+- Sem múltiplas unidades (multi-tenant).
 - Os testes de navegador rodam no Chrome/Chromium.
 - As capturas de tela ainda são da versão anterior.
 

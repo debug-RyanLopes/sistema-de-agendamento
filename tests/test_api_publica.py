@@ -76,7 +76,9 @@ def test_disponibilidade_mostra_barbeiros_com_horarios(
     corpo = resposta.json()
     assert resposta.status_code == 200
     assert [barbeiro["nome"] for barbeiro in corpo["barbeiros"]] == ["João Barbeiro"]
-    assert len(corpo["barbeiros"][0]["horarios"]) == 35
+    assert len(corpo["barbeiros"][0]["horarios"]) == 18
+    assert corpo["duracao_minutos"] == 30
+    assert corpo["servico_ids"] == [cenario.servico_30.id]
 
 
 def test_disponibilidade_oculta_barbeiro_inativo_e_dia_sem_janela(

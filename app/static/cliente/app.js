@@ -1,6 +1,7 @@
 import {
   $,
   api,
+  aplicarMascaraDeTelefone,
   carregarConfiguracao,
   dataLocalHoje,
   elemento,
@@ -8,15 +9,18 @@ import {
   formatarDataHora,
   mensagem,
   ocupado,
-  preencherSelect,
   reais,
   ultimoDiaDoMes,
+  validarCampo,
+  validarEmail,
+  validarNome,
+  validarTelefone,
 } from "/comum/util.js";
 
 const CHAVE_AGENDAMENTO = "barbearia.ultimoAgendamento";
 const CHAVE_DADOS = "barbearia.meusDados";
 
-const estado = { escolha: null, ultima: null, token: null, remarcarEscolha: null };
+const estado = { escolha: null, ultima: null, token: null, servicos: [], duracao: 0, validadores: [] };
 
 function lerGuardado(chave) {
   try {
@@ -35,6 +39,52 @@ function guardar(chave, valor) {
   }
 }
 
+// --- serviços (um ou vários) -----------------------------------------------------------------
+
+function servicosEscolhidos() {
+  return [...document.querySelectorAll("#servicos input:checked")].map((caixa) => Number(caixa.value));
+}
+
+function atualizarResumoDeServicos() {
+  const ids = servicosEscolhidos();
+  const escolhidos = estado.servicos.filter((s) => ids.includes(s.id));
+  const duracao = escolhidos.reduce((total, s) => total + s.duracao_minutos, 0);
+  const preco = escolhidos.reduce((total, s) => total + Number(s.preco), 0);
+  estado.duracao = duracao;
+  $("resumo-servicos").textContent = escolhidos.length
+    ? `${escolhidos.map((s) => s.nome).join(" + ")}: ${duracao} min, ${reais(preco)}`
+    : "Nenhum serviço selecionado.";
+  limparEscolha();
+  $("barbeiros").replaceChildren();
+}
+
+function montarServicos(servicos) {
+  estado.servicos = servicos;
+  $("servicos").replaceChildren(
+    ...servicos.map((s) =>
+      elemento(
+        "label",
+        { classe: "servico-opcao" },
+        elemento("input", { type: "checkbox", name: "servico", value: String(s.id) }),
+        elemento("span", {}, s.nome, elemento("small", { textContent: `${s.duracao_minutos} min · ${reais(s.preco)}` })),
+      ),
+    ),
+  );
+  $("servicos").addEventListener("change", atualizarResumoDeServicos);
+}
+
+function parametrosDeServicos(ids) {
+  return ids.map((id) => `servico_ids=${id}`).join("&");
+}
+
+function horaFim(inicio, minutos) {
+  const [h, m] = inicio.slice(11, 16).split(":").map(Number);
+  const total = h * 60 + m + minutos;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// --- escolha de barbeiro e horário -------------------------------------------------------------
+
 function limparEscolha() {
   estado.escolha = null;
   $("resumo").textContent = "Nenhum horário selecionado.";
@@ -44,20 +94,20 @@ function limparEscolha() {
 function escolher(barbeiro, inicio, botao) {
   estado.escolha = { barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome, inicio };
   document.querySelectorAll("#barbeiros button").forEach((outro) => outro.setAttribute("aria-pressed", String(outro === botao)));
-  $("resumo").textContent = `${barbeiro.nome} em ${formatarDataHora(inicio)}`;
+  $("resumo").textContent = `${barbeiro.nome} em ${formatarDataHora(inicio)} (até ${horaFim(inicio, estado.duracao)})`;
   $("confirmar").disabled = false;
 }
 
-function botoesDeHorario(horarios, aoEscolher) {
+function botoesDeHorario(horarios, duracao, aoEscolher) {
   return horarios.map((inicio) => {
-    const botao = elemento("button", { type: "button", textContent: inicio.slice(11, 16) });
+    const botao = elemento("button", { type: "button", textContent: `${inicio.slice(11, 16)} – ${horaFim(inicio, duracao)}` });
     botao.setAttribute("aria-pressed", "false");
     botao.addEventListener("click", () => aoEscolher(inicio, botao));
     return botao;
   });
 }
 
-function cartaoBarbeiro(barbeiro, extra = "") {
+function cartaoBarbeiro(barbeiro, duracao, extra = "") {
   return elemento(
     "article",
     { classe: `barbeiro ${extra}`.trim() },
@@ -65,7 +115,7 @@ function cartaoBarbeiro(barbeiro, extra = "") {
     elemento(
       "div",
       { classe: "horarios", role: "group", "aria-label": `Horários de ${barbeiro.nome}` },
-      botoesDeHorario(barbeiro.horarios, (inicio, botao) => escolher(barbeiro, inicio, botao)),
+      botoesDeHorario(barbeiro.horarios, duracao, (inicio, botao) => escolher(barbeiro, inicio, botao)),
     ),
   );
 }
@@ -74,21 +124,28 @@ async function verBarbeiros() {
   limparEscolha();
   const lista = $("barbeiros");
   lista.replaceChildren();
-  if (!$("servico").reportValidity() || !$("data").reportValidity()) return;
-  const resposta = await api("GET", `/disponibilidade?data=${$("data").value}&servico_id=${$("servico").value}`);
+  const ids = servicosEscolhidos();
+  if (!ids.length) {
+    mensagem("aviso", "Marque pelo menos um serviço.");
+    return;
+  }
+  if (!$("data").reportValidity()) return;
+  const resposta = await api("GET", `/disponibilidade?data=${$("data").value}&${parametrosDeServicos(ids)}`);
   if (!resposta.ok) {
     falha(resposta);
     return;
   }
-  const { barbeiros } = resposta.dados;
+  $("mensagem").hidden = true;
+  const { barbeiros, duracao_minutos: duracao } = resposta.dados;
+  estado.duracao = duracao;
   $("ajuda-barbeiros").textContent = barbeiros.length
-    ? `${barbeiros.length} barbeiro(s) com horários livres. Escolha um horário.`
+    ? `${barbeiros.length} barbeiro(s) com horários livres para ${duracao} min. Escolha um horário.`
     : "Nenhum barbeiro com horário livre nesse dia. Tente outra data.";
   if (barbeiros.length > 1) {
     const horarios = [...new Set(barbeiros.flatMap((b) => b.horarios))].sort();
-    lista.append(cartaoBarbeiro({ id: null, nome: "Qualquer barbeiro", horarios }, "qualquer"));
+    lista.append(cartaoBarbeiro({ id: null, nome: "Qualquer barbeiro", horarios }, duracao, "qualquer"));
   }
-  barbeiros.forEach((barbeiro) => lista.append(cartaoBarbeiro(barbeiro)));
+  barbeiros.forEach((barbeiro) => lista.append(cartaoBarbeiro(barbeiro, duracao)));
 }
 
 function mostrarConfirmacao(confirmacao) {
@@ -115,21 +172,30 @@ function voltarAoFormulario() {
   $("agendamento").hidden = false;
   limparEscolha();
   $("barbeiros").replaceChildren();
-  $("ajuda-barbeiros").textContent = "Escolha o serviço e o dia para ver quem está disponível.";
+  $("ajuda-barbeiros").textContent = "Escolha os serviços e o dia para ver quem está disponível.";
+}
+
+function dadosValidos() {
+  return estado.validadores.map((validar) => validar()).every(Boolean);
 }
 
 async function agendar(evento) {
   evento.preventDefault();
+  if (!dadosValidos()) {
+    mensagem("aviso", "Corrija os campos destacados antes de confirmar.");
+    $("form-agendamento").reportValidity();
+    return;
+  }
   if (!estado.escolha) {
     mensagem("aviso", "Escolha um horário antes de confirmar.");
     return;
   }
   const liberar = ocupado($("confirmar"), "Confirmando...");
-  const dados = { nome: $("nome").value, email: $("email").value, telefone: $("telefone").value };
+  const dados = { nome: $("nome").value.trim(), email: $("email").value.trim(), telefone: $("telefone").value };
   const resposta = await api("POST", "/agendamentos", {
     ...dados,
     barbeiro_id: estado.escolha.barbeiroId,
-    servico_id: Number($("servico").value),
+    servico_ids: servicosEscolhidos(),
     inicio: estado.escolha.inicio,
   });
   liberar();
@@ -139,10 +205,9 @@ async function agendar(evento) {
     return;
   }
   guardar(CHAVE_DADOS, $("lembrar").checked ? dados : null);
-  const confirmacao = { ...resposta.dados, servico_id: Number($("servico").value) };
-  guardar(CHAVE_AGENDAMENTO, confirmacao);
+  guardar(CHAVE_AGENDAMENTO, resposta.dados);
   $("mensagem").hidden = true;
-  mostrarConfirmacao(confirmacao);
+  mostrarConfirmacao(resposta.dados);
 }
 
 async function cancelar(id, codigo) {
@@ -159,20 +224,20 @@ async function cancelar(id, codigo) {
   return true;
 }
 
-// --- remarcar -------------------------------------------------------------------------
+// --- remarcar ---------------------------------------------------------------------------------
 
 async function verHorariosParaRemarcar() {
   const ultima = estado.ultima;
   const lista = $("remarcar-horarios");
   lista.replaceChildren();
-  estado.remarcarEscolha = null;
-  if (!ultima?.servico_id) {
-    mensagem("aviso", "Não foi possível identificar o serviço; cancele e marque de novo.");
+  const ids = ultima?.servico_ids?.length ? ultima.servico_ids : null;
+  if (!ids) {
+    mensagem("aviso", "Não foi possível identificar os serviços; cancele e marque de novo.");
     return;
   }
   const data = $("remarcar-data").value;
   if (!data) return;
-  const resposta = await api("GET", `/disponibilidade?data=${data}&servico_id=${ultima.servico_id}`);
+  const resposta = await api("GET", `/disponibilidade?data=${data}&${parametrosDeServicos(ids)}`);
   if (!resposta.ok) {
     falha(resposta);
     return;
@@ -183,7 +248,7 @@ async function verHorariosParaRemarcar() {
     return;
   }
   lista.append(
-    ...botoesDeHorario(barbeiro.horarios, async (inicio, botao) => {
+    ...botoesDeHorario(barbeiro.horarios, resposta.dados.duracao_minutos, async (inicio, botao) => {
       if (!confirm(`Remarcar para ${formatarDataHora(inicio)}?`)) return;
       const liberar = ocupado(botao);
       const remarcado = await api("POST", `/agendamentos/${ultima.id}/reagendar`, {
@@ -195,15 +260,14 @@ async function verHorariosParaRemarcar() {
         falha(remarcado);
         return;
       }
-      const confirmacao = { ...remarcado.dados, servico_id: ultima.servico_id };
-      guardar(CHAVE_AGENDAMENTO, confirmacao);
-      mostrarConfirmacao(confirmacao);
+      guardar(CHAVE_AGENDAMENTO, remarcado.dados);
+      mostrarConfirmacao(remarcado.dados);
       mensagem("sucesso", `Agendamento #${ultima.id} remarcado para ${formatarDataHora(inicio)}.`);
     }),
   );
 }
 
-// --- meus agendamentos (link mágico) ----------------------------------------------------
+// --- meus agendamentos (link mágico) ------------------------------------------------------------
 
 function linhaMeuAgendamento(item) {
   const descricao = `${formatarDataHora(item.inicio)} - ${item.servico} com ${item.barbeiro}`;
@@ -257,7 +321,7 @@ async function apagarMeusDados() {
   mensagem("sucesso", "Seus dados pessoais foram apagados.");
 }
 
-// --- inicialização ----------------------------------------------------------------------
+// --- inicialização -------------------------------------------------------------------------------
 
 async function iniciar() {
   await carregarConfiguracao();
@@ -268,6 +332,14 @@ async function iniciar() {
     $(id).max = ultimoDiaDoMes(hoje);
   }
 
+  aplicarMascaraDeTelefone($("telefone"));
+  estado.validadores = [
+    validarCampo($("nome"), validarNome),
+    validarCampo($("email"), validarEmail),
+    validarCampo($("telefone"), validarTelefone),
+  ];
+  validarCampo($("link-email"), validarEmail);
+
   const dadosGuardados = lerGuardado(CHAVE_DADOS);
   if (dadosGuardados) {
     $("nome").value = dadosGuardados.nome ?? "";
@@ -276,7 +348,6 @@ async function iniciar() {
   }
 
   $("ver-barbeiros").addEventListener("click", verBarbeiros);
-  $("servico").addEventListener("change", limparEscolha);
   $("data").addEventListener("change", limparEscolha);
   $("form-agendamento").addEventListener("submit", agendar);
 
@@ -300,9 +371,13 @@ async function iniciar() {
 
   $("form-link").addEventListener("submit", async (evento) => {
     evento.preventDefault();
+    if (validarEmail($("link-email").value)) {
+      evento.target.reportValidity();
+      return;
+    }
     const botao = evento.target.querySelector("button");
     const liberar = ocupado(botao, "Enviando...");
-    const resposta = await api("POST", "/meus-agendamentos/solicitar", { email: $("link-email").value });
+    const resposta = await api("POST", "/meus-agendamentos/solicitar", { email: $("link-email").value.trim() });
     liberar();
     if (!resposta.ok) {
       falha(resposta);
@@ -320,12 +395,7 @@ async function iniciar() {
       falha(resposta);
       return;
     }
-    preencherSelect(
-      $("servico"),
-      resposta.dados,
-      (s) => `${s.nome} - ${s.duracao_minutos} min - ${reais(s.preco)}`,
-      "Selecione...",
-    );
+    montarServicos(resposta.dados);
   });
 
   const token = new URLSearchParams(location.search).get("token");

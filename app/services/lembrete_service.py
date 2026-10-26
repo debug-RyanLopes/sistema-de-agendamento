@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import iniciar_escrita
 from app.repositories import agendamentos
+from app.services.agendamento_service import descrever_servicos
 from app.services.notificacao_service import (
     DadosAgendamento,
     Notificador,
@@ -30,6 +31,7 @@ def enviar_lembretes(
         return 0
     iniciar_escrita(session)
     pendentes = agendamentos.listar_para_lembrete(session, agora, agora + timedelta(hours=horas))
+    combos = agendamentos.servicos_dos_agendamentos(session, [p[0].id for p in pendentes])
     envios: list[DadosAgendamento] = []
     for agendamento, cliente, barbeiro, servico, preco in pendentes:
         agendamento.lembrete_enviado_em = agora
@@ -38,7 +40,7 @@ def enviar_lembretes(
                 email=cliente.email,
                 cliente=cliente.nome,
                 barbeiro=barbeiro,
-                servico=servico,
+                servico=descrever_servicos(combos.get(agendamento.id), servico),
                 inicio=agendamento.inicio,
                 preco=preco,
                 agendamento_id=agendamento.id,

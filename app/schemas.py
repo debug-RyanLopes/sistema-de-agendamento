@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import CENTAVOS, Origem, PapelUsuario, StatusAgendamento
+from app.models import CENTAVOS, TAMANHO_NOME, Origem, PapelUsuario, StatusAgendamento
 
 
 def _validar_email(valor: str) -> str:
@@ -88,7 +88,7 @@ class AtivoIn(BaseModel):
 
 
 class ClienteIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["Carlos Silva"])
     email: Email = Field(examples=["carlos@exemplo.com"])
     telefone: Telefone = Field(examples=["(92) 91234-5678"])
 
@@ -103,7 +103,7 @@ class ClienteOut(_Saida):
 
 
 class BarbeiroIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["João Barbeiro"])
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["João Barbeiro"])
     email: Email = Field(examples=["joao@barbearia.com"])
 
 
@@ -115,7 +115,7 @@ class BarbeiroOut(_Saida):
 
 
 class ServicoIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["Corte de cabelo"])
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["Corte de cabelo"])
     duracao_minutos: int = Field(gt=0, le=480, examples=[30])
     preco: Dinheiro = Field(examples=["45.00"])
 
@@ -136,7 +136,7 @@ class ServicoPublicoOut(_Saida):
 
 
 class ProdutoIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["Pomada modeladora"])
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["Pomada modeladora"])
     preco: Dinheiro = Field(examples=["35.90"])
     estoque: int = Field(ge=0, le=100000, examples=[12])
 
@@ -179,7 +179,9 @@ class BloqueioIn(BaseModel):
     data: date
     hora_inicio: time | None = Field(default=None, description="Vazio = dia inteiro")
     hora_fim: time | None = None
-    motivo: str | None = Field(default=None, max_length=100, examples=["Feriado municipal"])
+    motivo: str | None = Field(
+        default=None, max_length=TAMANHO_NOME, examples=["Feriado municipal"]
+    )
 
     @model_validator(mode="after")
     def _horas_coerentes(self) -> "BloqueioIn":
@@ -202,10 +204,50 @@ class BloqueioOut(_Saida):
 # --- agendamentos ----------------------------------------------------------------------
 
 
-class AgendamentoIn(BaseModel):
+MAXIMO_SERVICOS = 5
+
+
+def _servicos_unicos(valor: list[int]) -> list[int]:
+    vistos: list[int] = []
+    for item in valor:
+        if item not in vistos:
+            vistos.append(item)
+    return vistos
+
+
+class _ComServicos(BaseModel):
+    """Aceita `servico_id` (um) ou `servico_ids` (combo, na ordem escolhida)."""
+
+    servico_id: int | None = Field(default=None, examples=[1])
+    servico_ids: list[int] | None = Field(
+        default=None, max_length=MAXIMO_SERVICOS, examples=[[1, 2]]
+    )
+
+    @model_validator(mode="after")
+    def _ao_menos_um_servico(self) -> "_ComServicos":
+        if self.servico_ids:
+            self.servico_ids = _servicos_unicos(self.servico_ids)
+            if self.servico_id is None:
+                self.servico_id = self.servico_ids[0]
+        elif self.servico_id is not None:
+            self.servico_ids = [self.servico_id]
+        else:
+            raise ValueError("informe servico_id ou servico_ids")
+        return self
+
+    @property
+    def servicos(self) -> list[int]:
+        # `servico_id` alterado depois da validação (ex.: model_copy) prevalece sobre a lista.
+        if self.servico_ids and self.servico_id in self.servico_ids:
+            return self.servico_ids
+        if self.servico_id is not None:
+            return [self.servico_id]
+        return self.servico_ids or []
+
+
+class AgendamentoIn(_ComServicos):
     cliente_id: int
     barbeiro_id: int
-    servico_id: int
     inicio: HorarioLocal = Field(
         description="Horário local da barbearia, sem fuso", examples=["2030-01-07T10:00:00"]
     )
@@ -219,6 +261,8 @@ class AgendamentoOut(_Saida):
     inicio: datetime
     fim: datetime
     status: StatusAgendamento
+    servico_ids: list[int] = []
+    preco: Dinheiro | None = None
     origem: Origem | None = None
     criado_em: datetime | None = None
     cancelado_em: datetime | None = None
@@ -247,6 +291,8 @@ class PaginaAgendamentosOut(BaseModel):
 class HorariosLivresOut(BaseModel):
     barbeiro_id: int
     servico_id: int
+    servico_ids: list[int] = []
+    duracao_minutos: int = 0
     data: date
     horarios: list[datetime]
 
@@ -254,14 +300,13 @@ class HorariosLivresOut(BaseModel):
 # --- área do cliente -------------------------------------------------------------------
 
 
-class AgendamentoPublicoIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["Carlos Silva"])
+class AgendamentoPublicoIn(_ComServicos):
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["Carlos Silva"])
     email: Email = Field(examples=["carlos@exemplo.com"])
     telefone: Telefone = Field(examples=["(92) 91234-5678"])
     barbeiro_id: int | None = Field(
         default=None, description="Vazio = qualquer barbeiro com o horário livre"
     )
-    servico_id: int
     inicio: HorarioLocal = Field(
         description="Horário local da barbearia, sem fuso", examples=["2030-01-07T10:00:00"]
     )
@@ -271,7 +316,10 @@ class ConfirmacaoOut(BaseModel):
     id: int
     codigo_cancelamento: str
     barbeiro: str
-    servico: str
+    servico: str = Field(description="Nomes dos serviços, ex.: 'Corte de cabelo + Barba'")
+    servicos: list[str] = []
+    servico_ids: list[int] = []
+    duracao_minutos: int = 0
     inicio: datetime
     fim: datetime
     preco: Dinheiro
@@ -300,6 +348,9 @@ class BarbeiroDisponivelOut(BaseModel):
 class DisponibilidadeDiaOut(BaseModel):
     data: date
     servico_id: int
+    servico_ids: list[int] = []
+    duracao_minutos: int = 0
+    preco: Dinheiro | None = None
     barbeiros: list[BarbeiroDisponivelOut]
 
 
@@ -312,6 +363,7 @@ class MeuAgendamentoOut(BaseModel):
     codigo_cancelamento: str | None
     barbeiro: str
     servico: str
+    servico_ids: list[int] = []
     inicio: datetime
     fim: datetime
     status: StatusAgendamento
@@ -408,7 +460,7 @@ class VendaOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    login: str = Field(min_length=1, max_length=100, examples=["admin"])
+    login: str = Field(min_length=1, max_length=TAMANHO_NOME, examples=["admin"])
     senha: str = Field(min_length=1, max_length=200)
 
 
@@ -423,7 +475,7 @@ Login = Annotated[str, AfterValidator(_validar_login)]
 
 
 class UsuarioIn(BaseModel):
-    nome: str = Field(min_length=2, max_length=100, examples=["Maria Dona"])
+    nome: str = Field(min_length=2, max_length=TAMANHO_NOME, examples=["Maria Dona"])
     login: Login = Field(examples=["maria"])
     senha: str = Field(min_length=8, max_length=200)
     papel: PapelUsuario = PapelUsuario.BARBEIRO

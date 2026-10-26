@@ -160,17 +160,27 @@ def _sobrepoe(
     )
 
 
+def _passo_da_grade(duracao_minutos: int, slot_minutos: int) -> timedelta:
+    """Os horários oferecidos avançam pela duração do serviço (arredondada ao slot).
+
+    Um corte de 30 min aparece como 09:00, 09:30, 10:00...; um combo de 60 min como
+    09:00, 10:00, 11:00... Assim a agenda não fica picada em sobras inúteis.
+    """
+    multiplo = max(1, -(-duracao_minutos // slot_minutos))
+    return timedelta(minutes=multiplo * slot_minutos)
+
+
 def _calcular_horarios(
     session: Session,
     barbeiro_id: int,
-    servico: Servico,
+    duracao_minutos: int,
     dia: date,
     agora: datetime,
     slot_minutos: int,
     ignorar_agendamento_id: int | None = None,
 ) -> list[datetime]:
-    duracao = timedelta(minutes=servico.duracao_minutos)
-    passo = timedelta(minutes=slot_minutos)
+    duracao = timedelta(minutes=duracao_minutos)
+    passo = _passo_da_grade(duracao_minutos, slot_minutos)
     intervalo = intervalo_entre_atendimentos()
     ocupados = [
         (item.inicio, item.fim)
@@ -178,50 +188,78 @@ def _calcular_horarios(
             session, barbeiro_id, dia, ignorar_agendamento_id
         )
     ]
-    livres: set[datetime] = set()
+    candidatos: set[datetime] = set()
     for j_inicio, j_fim in janelas_do_dia(session, barbeiro_id, dia):
         cursor = _alinhar(j_inicio, slot_minutos)
         while cursor + duracao <= j_fim:
-            if cursor > agora and not _sobrepoe(cursor, cursor + duracao, ocupados, intervalo):
-                livres.add(cursor)
+            candidatos.add(cursor)
             cursor += passo
-    return sorted(livres)
+        # Logo depois de cada atendimento já marcado também é uma boa opção: evita buracos.
+        for _o_inicio, o_fim in ocupados:
+            depois = _alinhar(o_fim + intervalo, slot_minutos)
+            if j_inicio <= depois and depois + duracao <= j_fim:
+                candidatos.add(depois)
+    return sorted(
+        c for c in candidatos if c > agora and not _sobrepoe(c, c + duracao, ocupados, intervalo)
+    )
+
+
+def _ids(servico_ids: int | list[int]) -> list[int]:
+    return [servico_ids] if isinstance(servico_ids, int) else list(servico_ids)
+
+
+def servicos_escolhidos(session: Session, servico_ids: int | list[int]) -> list[Servico]:
+    """Serviços ativos, na ordem pedida; levanta 404/422 como o resto da aplicação."""
+    return [
+        cadastro_service.obter_ativo(session, Servico, item, "serviço")
+        for item in _ids(servico_ids)
+    ]
+
+
+def duracao_total(servicos: list[Servico]) -> int:
+    return sum(servico.duracao_minutos for servico in servicos)
 
 
 def horarios_livres(
     session: Session,
     barbeiro_id: int,
-    servico_id: int,
+    servico_ids: int | list[int],
     dia: date,
     agora: datetime,
     slot_minutos: int,
 ) -> list[datetime]:
     cadastro_service.obter(session, Barbeiro, barbeiro_id, "barbeiro")
-    servico = cadastro_service.obter(session, Servico, servico_id, "serviço")
-    return _calcular_horarios(session, barbeiro_id, servico, dia, agora, slot_minutos)
+    servicos = [cadastro_service.obter(session, Servico, i, "serviço") for i in _ids(servico_ids)]
+    return _calcular_horarios(
+        session, barbeiro_id, duracao_total(servicos), dia, agora, slot_minutos
+    )
 
 
 def barbeiros_disponiveis(
-    session: Session, servico_id: int, dia: date, agora: datetime, slot_minutos: int
+    session: Session,
+    servico_ids: int | list[int],
+    dia: date,
+    agora: datetime,
+    slot_minutos: int,
 ) -> list[tuple[Barbeiro, list[datetime]]]:
-    servico = cadastro_service.obter_ativo(session, Servico, servico_id, "serviço")
+    duracao = duracao_total(servicos_escolhidos(session, servico_ids))
     validar_janela_de_datas(dia, agora)
     resultado = []
     for barbeiro in cadastros.listar(session, Barbeiro, incluir_inativos=False):
-        horarios = _calcular_horarios(session, barbeiro.id, servico, dia, agora, slot_minutos)
+        horarios = _calcular_horarios(session, barbeiro.id, duracao, dia, agora, slot_minutos)
         if horarios:
             resultado.append((barbeiro, horarios))
     return resultado
 
 
 def escolher_barbeiro(
-    session: Session, servico: Servico, inicio: datetime, agora: datetime, slot_minutos: int
+    session: Session, duracao_minutos: int, inicio: datetime, agora: datetime, slot_minutos: int
 ) -> Barbeiro:
     """ "Qualquer barbeiro": o ativo que tem o horário livre e menos agendamentos no dia."""
     candidatos = []
     for barbeiro in cadastros.listar(session, Barbeiro, incluir_inativos=False):
         livres = _calcular_horarios(
-            session, barbeiro.id, servico, inicio.date(), agora, slot_minutos
+            session, barbeiro.id, duracao_minutos, inicio.date(), agora, slot_minutos
         )
         if inicio in livres:
             ocupacao = len(agendamentos.listar_ativos_no_dia(session, barbeiro.id, inicio.date()))

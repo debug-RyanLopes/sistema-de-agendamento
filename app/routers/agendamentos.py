@@ -35,6 +35,25 @@ def _escopo(usuario: UsuarioAutenticado, barbeiro_id: int | None) -> int | None:
     return usuario.barbeiro_id
 
 
+def _saida(sessao, agendamento: Agendamento) -> AgendamentoOut:
+    resumo = agendamento_service.resumo_dos_servicos(sessao, agendamento)
+    saida = AgendamentoOut.model_validate(agendamento)
+    saida.servico_ids = resumo.ids
+    saida.preco = resumo.preco
+    return saida
+
+
+def _saidas(sessao, itens: list[Agendamento]) -> list[AgendamentoOut]:
+    """Mesma coisa para uma página inteira, com uma única consulta aos serviços."""
+    combos = agendamento_service.servicos_de_varios(sessao, itens)
+    saidas = []
+    for agendamento in itens:
+        saida = AgendamentoOut.model_validate(agendamento)
+        saida.servico_ids, saida.preco = combos[agendamento.id]
+        saidas.append(saida)
+    return saidas
+
+
 def _somente_do(usuario: UsuarioAutenticado) -> int | None:
     """Restrição passada aos serviços: barbeiro só mexe nos próprios agendamentos."""
     return None if usuario.e_dono else usuario.barbeiro_id
@@ -53,11 +72,11 @@ def criar_agendamento(
     agora: AgoraDep,
     notificador: NotificadorDep,
     usuario: UsuarioDep,
-) -> Agendamento:
+) -> AgendamentoOut:
     _escopo(usuario, dados.barbeiro_id)
     agendamento, confirmacao = agendamento_service.criar(sessao, dados, agora)
     tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
-    return agendamento
+    return _saida(sessao, agendamento)
 
 
 @router.get(
@@ -95,13 +114,17 @@ def listar_agendamentos(
         ate,
     )
     return PaginaAgendamentosOut(
-        itens=itens, total=total, limite=limite, deslocamento=deslocamento
+        itens=_saidas(sessao, itens), total=total, limite=limite, deslocamento=deslocamento
     )
 
 
 @router.get("/{agendamento_id}", response_model=AgendamentoOut, responses={**ERRO_403, **ERRO_404})
-def obter_agendamento(agendamento_id: int, sessao: SessaoDep, usuario: UsuarioDep) -> Agendamento:
-    return agendamento_service.obter_para(sessao, agendamento_id, _somente_do(usuario))
+def obter_agendamento(
+    agendamento_id: int, sessao: SessaoDep, usuario: UsuarioDep
+) -> AgendamentoOut:
+    return _saida(
+        sessao, agendamento_service.obter_para(sessao, agendamento_id, _somente_do(usuario))
+    )
 
 
 @router.delete(
@@ -120,14 +143,14 @@ def cancelar_agendamento(
     notificador: NotificadorDep,
     usuario: UsuarioDep,
     motivo: str | None = Query(None, max_length=200),
-) -> Agendamento:
+) -> AgendamentoOut:
     agendamento, cancelou = agendamento_service.cancelar(
         sessao, agendamento_id, agora, motivo=motivo, somente_do_barbeiro=_somente_do(usuario)
     )
     if cancelou:
         dados = agendamento_service.dados_para_notificacao(sessao, agendamento)
         tarefas.add_task(notificar_sem_falhar, notificador, "enviar_cancelamento", dados)
-    return agendamento
+    return _saida(sessao, agendamento)
 
 
 @router.patch(
@@ -138,9 +161,12 @@ def cancelar_agendamento(
 )
 def marcar_status(
     agendamento_id: int, dados: StatusIn, sessao: SessaoDep, agora: AgoraDep, usuario: UsuarioDep
-) -> Agendamento:
-    return agendamento_service.marcar_status(
-        sessao, agendamento_id, dados.status, agora, _somente_do(usuario)
+) -> AgendamentoOut:
+    return _saida(
+        sessao,
+        agendamento_service.marcar_status(
+            sessao, agendamento_id, dados.status, agora, _somente_do(usuario)
+        ),
     )
 
 
@@ -158,9 +184,9 @@ def reagendar(
     agora: AgoraDep,
     notificador: NotificadorDep,
     usuario: UsuarioDep,
-) -> Agendamento:
+) -> AgendamentoOut:
     agendamento, confirmacao = agendamento_service.reagendar(
         sessao, agendamento_id, dados.inicio, agora, somente_do_barbeiro=_somente_do(usuario)
     )
     tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
-    return agendamento
+    return _saida(sessao, agendamento)

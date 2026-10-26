@@ -4,7 +4,14 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Agendamento, Barbeiro, Cliente, Servico, StatusAgendamento
+from app.models import (
+    Agendamento,
+    AgendamentoServico,
+    Barbeiro,
+    Cliente,
+    Servico,
+    StatusAgendamento,
+)
 
 
 def _limites_do_dia(dia: date) -> tuple[datetime, datetime]:
@@ -20,6 +27,56 @@ def adicionar(session: Session, agendamento: Agendamento) -> Agendamento:
 
 def obter(session: Session, identificador: int) -> Agendamento | None:
     return session.get(Agendamento, identificador)
+
+
+def adicionar_servicos(
+    session: Session, agendamento: Agendamento, servicos: list[Servico]
+) -> list[AgendamentoServico]:
+    itens = [
+        AgendamentoServico(
+            agendamento_id=agendamento.id,
+            servico_id=servico.id,
+            ordem=ordem,
+            preco=servico.preco,
+            duracao_minutos=servico.duracao_minutos,
+        )
+        for ordem, servico in enumerate(servicos)
+    ]
+    session.add_all(itens)
+    session.flush()
+    return itens
+
+
+def servicos_dos_agendamentos(
+    session: Session, agendamento_ids: list[int]
+) -> dict[int, list[tuple[int, str, Decimal, int]]]:
+    """Por agendamento: [(servico_id, nome, preço na época, duração)], na ordem escolhida.
+
+    Agendamentos antigos (anteriores aos combos) não têm linhas aqui; quem chama usa
+    `servico_id` como reserva.
+    """
+    if not agendamento_ids:
+        return {}
+    consulta = (
+        select(
+            AgendamentoServico.agendamento_id,
+            AgendamentoServico.servico_id,
+            Servico.nome,
+            AgendamentoServico.preco,
+            AgendamentoServico.duracao_minutos,
+        )
+        .join(Servico, Servico.id == AgendamentoServico.servico_id)
+        .where(AgendamentoServico.agendamento_id.in_(agendamento_ids))
+        .order_by(AgendamentoServico.agendamento_id, AgendamentoServico.ordem)
+    )
+    resultado: dict[int, list[tuple[int, str, Decimal, int]]] = {}
+    for agendamento_id, servico_id, nome, preco, duracao in session.execute(consulta):
+        resultado.setdefault(agendamento_id, []).append((servico_id, nome, preco, duracao))
+    return resultado
+
+
+def _preco():
+    return func.coalesce(Agendamento.preco, Servico.preco)
 
 
 def travar_agenda_do_barbeiro(session: Session, barbeiro_id: int) -> None:
@@ -107,7 +164,7 @@ def listar_detalhado(
 ) -> list[tuple[Agendamento, str, str, str, Decimal]]:
     """Agendamentos com nome do cliente, do barbeiro, do serviço e preço (para CSV e painel)."""
     consulta = _filtrar(
-        select(Agendamento, Cliente.nome, Barbeiro.nome, Servico.nome, Servico.preco)
+        select(Agendamento, Cliente.nome, Barbeiro.nome, Servico.nome, _preco())
         .join(Cliente, Cliente.id == Agendamento.cliente_id)
         .join(Barbeiro, Barbeiro.id == Agendamento.barbeiro_id)
         .join(Servico, Servico.id == Agendamento.servico_id)
@@ -119,7 +176,10 @@ def listar_detalhado(
         desde,
         ate,
     )
-    return [tuple(linha) for linha in session.execute(consulta)]
+    return [
+        (agendamento, cliente, barbeiro, servico, Decimal(str(preco)).quantize(Decimal("0.01")))
+        for agendamento, cliente, barbeiro, servico, preco in session.execute(consulta)
+    ]
 
 
 def existe_sobreposicao(
@@ -185,7 +245,7 @@ def listar_futuros_do_barbeiro(
     session: Session, barbeiro_id: int, agora: datetime
 ) -> list[tuple[Agendamento, str, str, Decimal]]:
     consulta = (
-        select(Agendamento, Cliente.nome, Servico.nome, Servico.preco)
+        select(Agendamento, Cliente.nome, Servico.nome, _preco())
         .join(Cliente, Cliente.id == Agendamento.cliente_id)
         .join(Servico, Servico.id == Agendamento.servico_id)
         .where(
@@ -195,14 +255,17 @@ def listar_futuros_do_barbeiro(
         )
         .order_by(Agendamento.inicio, Agendamento.id)
     )
-    return [tuple(linha) for linha in session.execute(consulta)]
+    return [
+        (agendamento, cliente, servico, Decimal(str(preco)).quantize(Decimal("0.01")))
+        for agendamento, cliente, servico, preco in session.execute(consulta)
+    ]
 
 
 def listar_futuros_do_cliente(
     session: Session, cliente_id: int, agora: datetime
 ) -> list[tuple[Agendamento, str, str, Decimal]]:
     consulta = (
-        select(Agendamento, Barbeiro.nome, Servico.nome, Servico.preco)
+        select(Agendamento, Barbeiro.nome, Servico.nome, _preco())
         .join(Barbeiro, Barbeiro.id == Agendamento.barbeiro_id)
         .join(Servico, Servico.id == Agendamento.servico_id)
         .where(
@@ -242,7 +305,7 @@ def listar_para_lembrete(
     session: Session, agora: datetime, ate: datetime
 ) -> list[tuple[Agendamento, Cliente, str, str, Decimal]]:
     consulta = (
-        select(Agendamento, Cliente, Barbeiro.nome, Servico.nome, Servico.preco)
+        select(Agendamento, Cliente, Barbeiro.nome, Servico.nome, _preco())
         .join(Cliente, Cliente.id == Agendamento.cliente_id)
         .join(Barbeiro, Barbeiro.id == Agendamento.barbeiro_id)
         .join(Servico, Servico.id == Agendamento.servico_id)
@@ -272,7 +335,7 @@ def resumo_por_barbeiro(
             Barbeiro.nome,
             Agendamento.status,
             func.count(Agendamento.id),
-            func.coalesce(func.sum(Servico.preco), 0),
+            func.coalesce(func.sum(_preco()), 0),
             func.coalesce(minutos, 0),
         )
         .join(Barbeiro, Barbeiro.id == Agendamento.barbeiro_id)

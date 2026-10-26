@@ -2,7 +2,7 @@ from datetime import time
 
 import pytest
 from app.errors import RecursoNaoEncontradoError
-from app.models import Barbeiro, Disponibilidade
+from app.models import Barbeiro, Disponibilidade, Servico
 from app.schemas import AgendamentoIn, DisponibilidadeIn
 from app.services import agendamento_service, disponibilidade_service
 from sqlalchemy.orm import Session
@@ -30,23 +30,59 @@ def _livres(session: Session, barbeiro_id: int, servico_id: int, agora=AGORA_FIX
     )
 
 
-def test_gera_slots_de_15_minutos_que_cabem_na_janela(session: Session, cenario: Cenario):
+def test_horarios_avancam_pela_duracao_do_servico(session: Session, cenario: Cenario):
     barbeiro = _barbeiro_com_janela(session, time(9, 0), time(12, 0))
 
     livres = _livres(session, barbeiro.id, cenario.servico_30.id)
 
-    assert len(livres) == 11
-    assert livres[0] == na_segunda(9)
-    assert livres[-1] == na_segunda(11, 30)
+    assert livres == [na_segunda(9, m) for m in (0, 30)] + [
+        na_segunda(h, m) for h in (10, 11) for m in (0, 30)
+    ]
 
 
-def test_servico_mais_longo_reduz_os_slots(session: Session, cenario: Cenario):
+def test_servico_de_uma_hora_avanca_de_hora_em_hora(session: Session, cenario: Cenario):
     barbeiro = _barbeiro_com_janela(session, time(9, 0), time(12, 0))
 
     livres = _livres(session, barbeiro.id, cenario.servico_60.id)
 
-    assert livres[-1] == na_segunda(11)
-    assert len(livres) == 9
+    assert livres == [na_segunda(9), na_segunda(10), na_segunda(11)]
+
+
+def test_combo_soma_as_duracoes(session: Session, cenario: Cenario):
+    barbeiro = _barbeiro_com_janela(session, time(9, 0), time(12, 0))
+
+    livres = disponibilidade_service.horarios_livres(
+        session,
+        barbeiro.id,
+        [cenario.servico_30.id, cenario.servico_60.id],
+        SEGUNDA.date(),
+        AGORA_FIXO,
+        SLOT,
+    )
+
+    assert livres == [na_segunda(9), na_segunda(10, 30)]  # 90 min cada
+
+
+def test_horario_logo_depois_de_um_atendimento_e_oferecido(session: Session, cenario: Cenario):
+    """Barba de 20 min às 10:00 termina 10:20; o próximo corte pode começar 10:30."""
+    barbeiro = _barbeiro_com_janela(session, time(9, 0), time(12, 0))
+    barba = Servico(nome="Barba", duracao_minutos=20, preco=30)
+    session.add(barba)
+    session.commit()
+    agendamento_service.criar(
+        session,
+        AgendamentoIn(
+            cliente_id=cenario.cliente.id,
+            barbeiro_id=barbeiro.id,
+            servico_id=barba.id,
+            inicio=na_segunda(10),
+        ),
+        AGORA_FIXO,
+    )
+
+    livres = _livres(session, barbeiro.id, cenario.servico_60.id)
+
+    assert livres == [na_segunda(9), na_segunda(10, 30), na_segunda(11)]
 
 
 def test_exclui_slots_que_sobrepoem_agendamento_existente(session: Session, cenario: Cenario):
@@ -75,7 +111,7 @@ def test_exclui_horarios_que_ja_passaram(session: Session, cenario: Cenario):
 
     livres = _livres(session, barbeiro.id, cenario.servico_30.id, agora=na_segunda(10, 7))
 
-    assert livres[0] == na_segunda(10, 15)
+    assert livres[0] == na_segunda(10, 30)
 
 
 def test_alinha_slots_ao_relogio_quando_a_janela_nao_e_multipla(

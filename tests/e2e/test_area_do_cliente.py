@@ -10,11 +10,12 @@ from tests.e2e.conftest import Barbearia, Servidores, requisicao
 def _marcar(pagina, barbearia: Barbearia, nome: str = "Maria E2E") -> str:
     email = f"{uuid.uuid4().hex[:8]}@e2e.com"
     pagina.reload()
-    pagina.wait_for_selector(f"#servico option[value='{barbearia.servico_id}']", state="attached")
+    pagina.wait_for_selector(f"#servicos input[value='{barbearia.servico_id}']", state="attached")
     pagina.fill("#nome", nome)
     pagina.fill("#email", email)
     pagina.fill("#telefone", "92999998888")
-    pagina.select_option("#servico", value=str(barbearia.servico_id))
+    assert pagina.input_value("#telefone") == "(92) 99999-8888"  # máscara aplicada ao digitar
+    pagina.check(f"#servicos input[value='{barbearia.servico_id}']")
     pagina.click("#ver-barbeiros")
     cartao = pagina.locator("article.barbeiro", has_text=barbearia.barbeiro)
     try:
@@ -140,3 +141,32 @@ def test_sem_rolagem_horizontal(pagina_cliente, largura: int):
     )
 
     assert sobra <= 0
+
+
+def test_email_invalido_mostra_erro_embaixo_do_campo_antes_de_enviar(pagina_cliente):
+    pagina_cliente.fill("#email", "sem-arroba")
+    pagina_cliente.dispatch_event("#email", "blur")
+
+    erro = pagina_cliente.locator("#email ~ .erro-campo")
+    erro.wait_for()
+
+    assert "inválido" in erro.inner_text()
+    assert pagina_cliente.evaluate("document.querySelector('#email').checkValidity()") is False
+
+
+def test_combo_soma_duracao_na_tela(pagina_cliente, servidores: Servidores, barbearia: Barbearia):
+    _, barba = requisicao(
+        servidores.empresa,
+        "POST",
+        "/servicos",
+        {"nome": f"Barba {uuid.uuid4().hex[:6]}", "duracao_minutos": 30, "preco": "30.00"},
+    )
+    pagina_cliente.reload()
+    pagina_cliente.wait_for_selector(f"#servicos input[value='{barba['id']}']", state="attached")
+
+    pagina_cliente.check(f"#servicos input[value='{barbearia.servico_id}']")
+    pagina_cliente.check(f"#servicos input[value='{barba['id']}']")
+
+    resumo = pagina_cliente.inner_text("#resumo-servicos")
+    assert "45 min" in resumo
+    assert "R$ 75,00" in resumo

@@ -61,17 +61,19 @@
         <fieldset>
           <legend>1. Seus dados</legend>
           <div class="grade-form">
-            <label>Nome <input id="nome" name="nome" autocomplete="name" required minlength="2" maxlength="100"></label>
-            <label>E-mail <input id="email" name="email" type="email" autocomplete="email" required></label>
-            <label>Telefone <input id="telefone" name="telefone" type="tel" autocomplete="tel" required minlength="10" maxlength="20" placeholder="(92) 91234-5678"></label>
+            <label>Nome <input id="nome" name="nome" autocomplete="name" required minlength="2" maxlength="120"></label>
+            <label>E-mail <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="nome@exemplo.com"></label>
+            <label>Telefone <input id="telefone" name="telefone" type="tel" autocomplete="tel" required minlength="14" maxlength="15" inputmode="numeric" placeholder="(92) 91234-5678"></label>
           </div>
           <label class="inline"><input id="lembrar" type="checkbox" checked> Lembrar meus dados neste navegador</label>
         </fieldset>
 
         <fieldset>
-          <legend>2. Serviço e dia</legend>
+          <legend>2. Serviços e dia</legend>
+          <p class="ajuda">Marque um ou mais serviços. Para um combo (ex.: corte e barba), marque os dois: a duração e o valor são somados.</p>
+          <div id="servicos" class="servicos" role="group" aria-label="Serviços"></div>
+          <p id="resumo-servicos" class="ajuda resumo-servicos">Nenhum serviço selecionado.</p>
           <div class="grade-form">
-            <label>Serviço <select id="servico" required></select></label>
             <label>Dia <input id="data" type="date" required></label>
             <button id="ver-barbeiros" type="button" class="primario">Ver barbeiros disponíveis</button>
           </div>

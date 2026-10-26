@@ -36,3 +36,12 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .botao-link { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 10px; border: 1px solid var(--borda);
   border-radius: var(--raio); background: var(--superficie); color: var(--texto); text-decoration: none; }
 .barbeiro.qualquer { border-style: dashed; }
+
+.servicos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.servico-opcao { display: flex; align-items: center; gap: 10px; border: 1px solid var(--borda); border-radius: var(--raio);
+  padding: 8px 10px; font-size: 0.95rem; color: var(--texto); cursor: pointer; }
+.servico-opcao:has(input:checked) { border-color: var(--destaque); background: var(--sucesso-fundo); }
+.servico-opcao span { display: grid; }
+.servico-opcao small { color: var(--texto-suave); }
+.resumo-servicos { font-weight: 600; color: var(--texto); }
+.horarios button { min-width: 112px; }

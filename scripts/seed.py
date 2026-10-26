@@ -8,6 +8,17 @@ from sqlalchemy import select
 
 DIAS_UTEIS_E_SABADO = range(0, 6)
 
+# O cliente monta o próprio combo marcando mais de um serviço (ex.: Corte + Barba).
+SERVICOS = [
+    Servico(nome="Corte de cabelo", duracao_minutos=30, preco=Decimal("45.0")),
+    Servico(nome="Barba", duracao_minutos=20, preco=Decimal("30.0")),
+    Servico(nome="Bigode", duracao_minutos=15, preco=Decimal("15.0")),
+    Servico(nome="Acabamento/Pezinho", duracao_minutos=15, preco=Decimal("15.0")),
+    Servico(nome="Sobrancelhas", duracao_minutos=15, preco=Decimal("15.0")),
+    Servico(nome="Hidratação", duracao_minutos=30, preco=Decimal("40.0")),
+    Servico(nome="Luzes", duracao_minutos=90, preco=Decimal("120.0")),
+]
+
 
 def popular() -> None:
     Base.metadata.create_all(engine)
@@ -23,9 +34,7 @@ def popular() -> None:
         session.add_all(
             [
                 Cliente(nome="Carlos Silva", email="carlos@exemplo.com", telefone="11987654321"),
-                Servico(nome="Corte de cabelo", duracao_minutos=30, preco=Decimal("45.0")),
-                Servico(nome="Barba", duracao_minutos=20, preco=Decimal("30.0")),
-                Servico(nome="Corte + barba", duracao_minutos=60, preco=Decimal("70.0")),
+                *SERVICOS,
                 Produto(nome="Pomada modeladora", preco=Decimal("35.9"), estoque=12),
                 Produto(nome="Óleo para barba", preco=Decimal("42.0"), estoque=8),
                 *barbeiros,
@@ -58,7 +67,7 @@ def popular() -> None:
         )
         session.commit()
         print(
-            "Dados de exemplo criados: 1 cliente, 2 barbeiros, 3 serviços, 2 produtos, "
+            "Dados de exemplo criados: 1 cliente, 2 barbeiros, 7 serviços, 2 produtos, "
             "2 bloqueios. O usuário 'admin' é criado na primeira subida da área da empresa."
         )
 

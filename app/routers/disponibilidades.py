@@ -1,21 +1,26 @@
 from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Query, Response
+from fastapi.exceptions import RequestValidationError
 
 from app.config import CONFIG
 from app.dependencies import AgoraDep, SessaoDep, SomenteDono
-from app.models import Bloqueio, Disponibilidade
+from app.models import Bloqueio, Disponibilidade, Servico
 from app.schemas import (
     ERRO_403,
     ERRO_404,
     ERRO_422,
+    MAXIMO_SERVICOS,
     BloqueioIn,
     BloqueioOut,
     DisponibilidadeIn,
     DisponibilidadeOut,
     HorariosLivresOut,
 )
-from app.services import disponibilidade_service
+from app.services import cadastro_service, disponibilidade_service
+
+SEM_SERVICO = "informe servico_id ou servico_ids"
 
 router = APIRouter(prefix="/barbeiros/{barbeiro_id}", tags=["disponibilidade"])
 bloqueios = APIRouter(prefix="/bloqueios", tags=["disponibilidade"])
@@ -56,13 +61,39 @@ def remover_disponibilidade(barbeiro_id: int, janela_id: int, sessao: SessaoDep)
     responses={**ERRO_404, **ERRO_422},
 )
 def horarios_livres(
-    barbeiro_id: int, data: date, servico_id: int, sessao: SessaoDep, agora: AgoraDep
+    barbeiro_id: int,
+    data: date,
+    sessao: SessaoDep,
+    agora: AgoraDep,
+    servico_id: int | None = None,
+    servico_ids: Annotated[list[int] | None, Query(max_length=MAXIMO_SERVICOS)] = None,
 ) -> HorariosLivresOut:
+    ids = list(
+        dict.fromkeys(([servico_id] if servico_id is not None else []) + (servico_ids or []))
+    )
+    if not ids:
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "servico_id"),
+                    "msg": "informe servico_id ou servico_ids",
+                    "type": "missing",
+                }
+            ]
+        )
     horarios = disponibilidade_service.horarios_livres(
-        sessao, barbeiro_id, servico_id, data, agora, CONFIG.slot_minutes
+        sessao, barbeiro_id, ids, data, agora, CONFIG.slot_minutes
+    )
+    duracao = disponibilidade_service.duracao_total(
+        [cadastro_service.obter(sessao, Servico, item, "serviço") for item in ids]
     )
     return HorariosLivresOut(
-        barbeiro_id=barbeiro_id, servico_id=servico_id, data=data, horarios=horarios
+        barbeiro_id=barbeiro_id,
+        servico_id=ids[0],
+        servico_ids=ids,
+        duracao_minutos=duracao,
+        data=data,
+        horarios=horarios,
     )
 
 

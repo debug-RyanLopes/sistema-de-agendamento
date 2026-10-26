@@ -1,6 +1,8 @@
 from datetime import date
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Query, Response
+from fastapi.exceptions import RequestValidationError
 
 from app.calendario import gerar_ics
 from app.config import CONFIG
@@ -14,6 +16,7 @@ from app.schemas import (
     ERRO_409,
     ERRO_422,
     ERRO_429,
+    MAXIMO_SERVICOS,
     AgendamentoPublicoIn,
     BarbeiroDisponivelOut,
     CancelamentoIn,
@@ -34,23 +37,46 @@ from app.services import (
 )
 from app.services.notificacao_service import DadosAgendamento, notificar_sem_falhar
 
+SEM_SERVICO = "informe servico_id ou servico_ids"
+
 router = APIRouter(tags=["cliente"])
 
 FINALIDADE_LINK = "meus-agendamentos"
 VALIDADE_LINK_SEGUNDOS = 30 * 60
 
 
-def _confirmacao(agendamento, dados: DadosAgendamento) -> ConfirmacaoOut:
+def _confirmacao(sessao, agendamento, dados: DadosAgendamento) -> ConfirmacaoOut:
+    resumo = agendamento_service.resumo_dos_servicos(sessao, agendamento)
     return ConfirmacaoOut(
         id=agendamento.id,
         codigo_cancelamento=agendamento.codigo_cancelamento,
         barbeiro=dados.barbeiro,
         servico=dados.servico,
+        servicos=resumo.nomes,
+        servico_ids=resumo.ids,
+        duracao_minutos=resumo.duracao_minutos,
         inicio=agendamento.inicio,
         fim=agendamento.fim,
         preco=dados.preco,
         status=agendamento.status,
     )
+
+
+def _ids(servico_id: int | None, servico_ids: list[int] | None) -> list[int]:
+    ids = list(servico_ids or [])
+    if servico_id is not None and servico_id not in ids:
+        ids.insert(0, servico_id)
+    if not ids:
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "servico_ids"),
+                    "msg": "informe servico_id ou servico_ids",
+                    "type": "missing",
+                }
+            ]
+        )
+    return list(dict.fromkeys(ids))
 
 
 @router.get("/servicos", response_model=list[ServicoPublicoOut], summary="Serviços disponíveis")
@@ -63,16 +89,27 @@ def listar_servicos(sessao: SessaoDep) -> list[Servico]:
     response_model=DisponibilidadeDiaOut,
     responses={**ERRO_404, **ERRO_422},
     summary="Barbeiros com horários livres no dia",
+    description="Use `servico_id` para um serviço ou `servico_ids` (repetido) para um combo; "
+    "os horários avançam pela duração total e cada opção comporta todos os serviços.",
 )
 def disponibilidade(
-    data: date, servico_id: int, sessao: SessaoDep, agora: AgoraDep
+    data: date,
+    sessao: SessaoDep,
+    agora: AgoraDep,
+    servico_id: int | None = None,
+    servico_ids: Annotated[list[int] | None, Query(max_length=MAXIMO_SERVICOS)] = None,
 ) -> DisponibilidadeDiaOut:
+    ids = _ids(servico_id, servico_ids)
+    servicos = disponibilidade_service.servicos_escolhidos(sessao, ids)
     disponiveis = disponibilidade_service.barbeiros_disponiveis(
-        sessao, servico_id, data, agora, CONFIG.slot_minutes
+        sessao, ids, data, agora, CONFIG.slot_minutes
     )
     return DisponibilidadeDiaOut(
         data=data,
-        servico_id=servico_id,
+        servico_id=ids[0],
+        servico_ids=ids,
+        duracao_minutos=disponibilidade_service.duracao_total(servicos),
+        preco=sum(servico.preco for servico in servicos),
         barbeiros=[
             BarbeiroDisponivelOut(id=barbeiro.id, nome=barbeiro.nome, horarios=horarios)
             for barbeiro, horarios in disponiveis
@@ -97,7 +134,7 @@ def agendar(
 ) -> ConfirmacaoOut:
     agendamento, confirmacao = agendamento_service.criar_publico(sessao, dados, agora)
     tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
-    return _confirmacao(agendamento, confirmacao)
+    return _confirmacao(sessao, agendamento, confirmacao)
 
 
 @router.post(
@@ -141,7 +178,7 @@ def reagendar(
         sessao, agendamento_id, dados.codigo, dados.inicio, agora
     )
     tarefas.add_task(notificar_sem_falhar, notificador, "enviar_confirmacao", confirmacao)
-    return _confirmacao(agendamento, confirmacao)
+    return _confirmacao(sessao, agendamento, confirmacao)
 
 
 @router.get(
@@ -214,6 +251,7 @@ def meus_agendamentos(
                 codigo_cancelamento=agendamento.codigo_cancelamento,
                 barbeiro=barbeiro,
                 servico=servico,
+                servico_ids=agendamento_service.resumo_dos_servicos(sessao, agendamento).ids,
                 inicio=agendamento.inicio,
                 fim=agendamento.fim,
                 status=agendamento.status,

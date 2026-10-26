@@ -3,6 +3,11 @@ import {
   STATUS_ROTULO,
   agoraLocalIso,
   api,
+  aplicarMascaraDeTelefone,
+  validarCampo,
+  validarEmail,
+  validarNome,
+  validarTelefone,
   carregarConfiguracao,
   criarOpcao,
   dataLocalHoje,
@@ -21,8 +26,8 @@ const INTERVALO_ATUALIZACAO_MS = 10000;
 const ITENS_POR_PAGINA = 25;
 const CADASTROS_POR_PAGINA = 25;
 
-const NOME = { nome: "nome", rotulo: "Nome", tipo: "text", atributos: { minLength: 2, maxLength: 100 } };
-const EMAIL = { nome: "email", rotulo: "E-mail", tipo: "email", atributos: {} };
+const NOME = { nome: "nome", rotulo: "Nome", tipo: "text", validar: validarNome, atributos: { minLength: 2, maxLength: 120 } };
+const EMAIL = { nome: "email", rotulo: "E-mail", tipo: "email", validar: validarEmail, atributos: { maxLength: 254, placeholder: "nome@exemplo.com" } };
 
 const CADASTROS = [
   {
@@ -30,7 +35,7 @@ const CADASTROS = [
     rota: "/clientes",
     titulo: "Clientes",
     singular: "cliente",
-    campos: [NOME, EMAIL, { nome: "telefone", rotulo: "Telefone", tipo: "text", atributos: { minLength: 10, maxLength: 20, placeholder: "(92) 91234-5678" } }],
+    campos: [NOME, EMAIL, { nome: "telefone", rotulo: "Telefone", tipo: "tel", telefone: true, validar: validarTelefone, atributos: { minLength: 14, maxLength: 15, placeholder: "(92) 91234-5678" } }],
     colunas: [["Nome", (c) => c.nome], ["E-mail", (c) => c.email], ["Telefone", (c) => formatarTelefone(c.telefone)]],
     busca: true,
     anonimizar: true,
@@ -87,6 +92,11 @@ function nomePorId(lista, id) {
   return item ? item.nome : `#${id}`;
 }
 
+function nomesDosServicos(agendamento) {
+  const ids = agendamento.servico_ids?.length ? agendamento.servico_ids : [agendamento.servico_id];
+  return ids.map((id) => nomePorId(dados.servicos, id)).join(" + ");
+}
+
 function rotuloComStatus(item) {
   return item.ativo ? item.nome : `${item.nome} (inativo)`;
 }
@@ -100,14 +110,12 @@ function selo(texto, classe) {
 function montarCadastro(cad) {
   const secao = $(`aba-${cad.id}`);
   const titulo = elemento("h2", { textContent: `Novo ${cad.singular}` });
-  const campos = cad.campos.map((campo) =>
-    elemento(
-      "label",
-      {},
-      campo.rotulo,
-      elemento("input", { name: campo.nome, type: campo.tipo, required: true, ...campo.atributos }),
-    ),
-  );
+  const campos = cad.campos.map((campo) => {
+    const entrada = elemento("input", { name: campo.nome, type: campo.tipo, required: true, ...campo.atributos });
+    if (campo.telefone) aplicarMascaraDeTelefone(entrada);
+    if (campo.validar) validarCampo(entrada, campo.validar);
+    return elemento("label", {}, campo.rotulo, entrada);
+  });
   const cancelarEdicaoBotao = elemento("button", { type: "button", textContent: "Cancelar edição", hidden: true });
   const salvar = elemento("button", { type: "submit", classe: "primario", textContent: "Salvar" });
   const formulario = elemento(
@@ -170,7 +178,8 @@ function sairDaEdicao(cad) {
 function iniciarEdicao(cad, item) {
   cad.ui.editando = item.id;
   cad.campos.forEach((campo) => {
-    cad.ui.formulario.elements[campo.nome].value = item[campo.nome];
+    const valor = item[campo.nome];
+    cad.ui.formulario.elements[campo.nome].value = campo.telefone ? formatarTelefone(valor) : valor;
   });
   cad.ui.titulo.textContent = `Editando ${cad.singular} #${item.id}`;
   cad.ui.cancelarEdicaoBotao.hidden = false;
@@ -593,7 +602,8 @@ function renderizarAgendamentos() {
         elemento("td", { textContent: agendamento.fim.slice(11, 16) }),
         elemento("td", { textContent: nomePorId(dados.clientes, agendamento.cliente_id) }),
         elemento("td", { textContent: nomePorId(dados.barbeiros, agendamento.barbeiro_id) }),
-        elemento("td", { textContent: nomePorId(dados.servicos, agendamento.servico_id) }),
+        elemento("td", { textContent: nomesDosServicos(agendamento) }),
+        elemento("td", { textContent: agendamento.preco ? reais(agendamento.preco) : "-" }),
         elemento("td", { textContent: agendamento.origem ?? "-" }),
         elemento("td", {}, selo(STATUS_ROTULO[agendamento.status] ?? agendamento.status, agendamento.status)),
         elemento("td", {}, elemento("div", { classe: "acoes-linha" }, ...acoesDoAgendamento(agendamento))),
@@ -659,7 +669,7 @@ async function carregarAgenda() {
             "div",
             { classe: `agenda-item ${a.status}` },
             `${a.inicio.slice(11, 16)} - ${a.fim.slice(11, 16)} ${nomePorId(dados.clientes, a.cliente_id)}`,
-            elemento("small", { textContent: `${nomePorId(dados.servicos, a.servico_id)} · ${STATUS_ROTULO[a.status] ?? a.status}` }),
+            elemento("small", { textContent: `${nomesDosServicos(a)} · ${STATUS_ROTULO[a.status] ?? a.status}` }),
           ),
         ),
       );

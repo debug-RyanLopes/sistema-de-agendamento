@@ -245,7 +245,7 @@ def test_barbeiros_disponiveis_lista_somente_ativos_com_horarios(
     )
 
     assert [barbeiro.nome for barbeiro, _ in disponiveis] == ["João Barbeiro"]
-    assert len(disponiveis[0][1]) == 35
+    assert len(disponiveis[0][1]) == 18  # 9h-18h de meia em meia hora (corte de 30 min)
 
 
 def test_barbeiros_disponiveis_vazio_em_dia_sem_janela(session: Session, cenario: Cenario):
