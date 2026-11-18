@@ -1,0 +1,53 @@
+# Desenvolvimento e demonstração com PostgreSQL.
+#   docker compose up --build
+#   docker compose run --rm app python -m scripts.seed
+# Cliente: http://localhost:8000  Empresa: http://localhost:8001 (admin / ADMIN_PASSWORD)
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      DATABASE_URL: postgresql+psycopg://barbearia:barbearia@banco:5432/barbearia
+      URL_PUBLICA: ${URL_PUBLICA:-http://localhost:8000}
+      LOG_JSON: "1"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    depends_on:
+      banco:
+        condition: service_healthy
+
+  banco:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: barbearia
+      POSTGRES_PASSWORD: barbearia
+      POSTGRES_DB: barbearia
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbearia -d barbearia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Proxy com HTTPS automático (Let's Encrypt). Ajuste os domínios no Caddyfile e
+  # exponha as portas 80/443 no servidor. Opcional em desenvolvimento.
+  proxy:
+    image: caddy:2-alpine
+    profiles: ["producao"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - dados-caddy:/data
+    depends_on:
+      - app
+
+volumes:
+  dados-postgres:
+  dados-caddy:

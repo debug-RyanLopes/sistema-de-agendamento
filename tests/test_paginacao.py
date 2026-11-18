@@ -2,11 +2,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from app.database import criar_motor
+from app.models import Agendamento, StatusAgendamento
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.database import criar_motor
-from app.models import Agendamento, StatusAgendamento
 from tests.conftest import Cenario
 from tests.test_migracao import _criar_banco_antigo, _migrar
 

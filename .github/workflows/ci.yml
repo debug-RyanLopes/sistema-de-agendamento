@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   testes:
     name: Lint e testes
@@ -18,9 +22,11 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check app scripts tests --select E,F,I,UP,B --line-length 99
-      - name: Testes de API e serviços
-        run: pytest --cov=app --cov-report=term-missing
+        run: ruff check
+      - name: Formatação (ruff)
+        run: ruff format --check app scripts tests
+      - name: Testes de API e serviços (cobertura mínima no pyproject)
+        run: pytest --cov
 
   navegador:
     name: Testes de navegador

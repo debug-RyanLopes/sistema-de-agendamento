@@ -42,3 +42,32 @@ dialog h2 { margin-top: 0; }
 .lista-impacto { margin: 8px 0; padding-left: 18px; max-height: 160px; overflow: auto; font-size: 0.9rem; }
 .botoes-dialogo { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
 .botoes-dialogo button { width: auto; }
+
+.cabecalho { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sessao { display: flex; align-items: center; gap: 8px; }
+.sessao .ajuda { margin: 0; }
+
+.status.concluido { background: var(--sucesso-fundo); color: var(--sucesso-texto); opacity: 0.8; }
+.status.nao_compareceu { background: var(--aviso-fundo); color: var(--aviso-texto); }
+
+.agenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+.agenda-coluna { border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px; display: grid; gap: 6px; align-content: start; }
+.agenda-coluna h3 { margin: 0 0 4px; font-size: 1rem; }
+.agenda-coluna .janela { font-size: 0.8rem; color: var(--texto-suave); }
+.agenda-item { border-left: 4px solid var(--destaque); background: var(--fundo); border-radius: 4px; padding: 6px 8px; font-size: 0.9rem; }
+.agenda-item.cancelado { border-left-color: var(--erro-texto); opacity: 0.6; text-decoration: line-through; }
+.agenda-item.concluido { border-left-color: var(--texto-suave); }
+.agenda-item.nao_compareceu { border-left-color: var(--aviso-texto); }
+.agenda-item.bloqueio { border-left-color: var(--aviso-texto); background: var(--aviso-fundo); color: var(--aviso-texto); }
+.agenda-item small { display: block; color: var(--texto-suave); }
+
+.cartoes-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 12px 0; }
+.cartao-resumo { border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; }
+.cartao-resumo dt { font-size: 0.8rem; color: var(--texto-suave); }
+.cartao-resumo dd { margin: 0; font-size: 1.3rem; font-weight: 600; }
+
+.linhas-venda { display: grid; gap: 8px; margin: 12px 0; }
+.linha-venda { display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; align-items: end; }
+.total-venda { font-weight: 600; margin: 8px 0; }
+.barra-busca { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 16px; }
+.barra-busca label { flex: 1; min-width: 180px; }

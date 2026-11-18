@@ -1,4 +1,3 @@
-import logging
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,37 +10,45 @@ from fastapi.staticfiles import StaticFiles
 from app.config import CONFIG
 from app.database import aplicar_migracoes, engine
 from app.errors import (
+    AcessoNegadoError,
     ConflitoHorarioError,
     DataForaDaJanelaError,
     DominioError,
+    EstoqueInsuficienteError,
     ForaDaDisponibilidadeError,
     HorarioInvalidoError,
     HorarioPassadoError,
+    LimiteExcedidoError,
+    NaoAutorizadoError,
     RecursoDuplicadoError,
     RecursoInativoError,
     RecursoNaoEncontradoError,
+    TransicaoInvalidaError,
 )
+from app.logs import configurar_logging
 from app.models import Base
+from app.routers.sistema import VERSAO
 
 PASTA_ESTATICA = Path(__file__).parent / "static"
 
 ERROS_HTTP: dict[type[DominioError], int] = {
+    NaoAutorizadoError: 401,
+    AcessoNegadoError: 403,
     RecursoNaoEncontradoError: 404,
     ConflitoHorarioError: 409,
+    RecursoDuplicadoError: 409,
+    TransicaoInvalidaError: 409,
+    EstoqueInsuficienteError: 409,
     ForaDaDisponibilidadeError: 422,
     HorarioPassadoError: 422,
     RecursoInativoError: 422,
-    RecursoDuplicadoError: 409,
     HorarioInvalidoError: 422,
     DataForaDaJanelaError: 422,
+    LimiteExcedidoError: 422,
 }
 
-
-@asynccontextmanager
-async def _preparar_banco(_app: FastAPI) -> AsyncIterator[None]:
-    Base.metadata.create_all(engine)
-    aplicar_migracoes(engine)
-    yield
+# Cada inicializador roda depois do banco estar pronto e devolve a função que o encerra.
+Inicializador = Callable[[], Callable[[], None]]
 
 
 def _criar_handler(status: int) -> Callable[[Request, Exception], JSONResponse]:
@@ -58,10 +65,23 @@ def criar_aplicacao(
     routers: Sequence[APIRouter],
     pasta_front_end: str,
     middlewares: Sequence[tuple[type, dict[str, Any]]] = (),
+    inicializadores: Sequence[Inicializador] = (),
 ) -> FastAPI:
-    logging.basicConfig(level=CONFIG.log_level)
+    configurar_logging(CONFIG.log_level, CONFIG.log_json)
+
+    @asynccontextmanager
+    async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
+        Base.metadata.create_all(engine)
+        aplicar_migracoes(engine)
+        encerradores = [iniciar() for iniciar in inicializadores]
+        try:
+            yield
+        finally:
+            for encerrar in reversed(encerradores):
+                encerrar()
+
     aplicacao = FastAPI(
-        title=titulo, description=descricao, version="2.0.0", lifespan=_preparar_banco
+        title=titulo, description=descricao, version=VERSAO, lifespan=_ciclo_de_vida
     )
     for tipo_erro, codigo in ERROS_HTTP.items():
         aplicacao.add_exception_handler(tipo_erro, _criar_handler(codigo))

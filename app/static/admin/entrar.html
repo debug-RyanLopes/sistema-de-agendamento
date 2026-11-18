@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Barbearia - Entrar</title>
+  <link rel="stylesheet" href="/comum/base.css">
+  <link rel="stylesheet" href="/comum/entrar.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="conteudo">
+      <h1>Painel da Empresa</h1>
+      <p class="sub">Entre com seu login e senha</p>
+    </div>
+  </header>
+  <main class="conteudo">
+    <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden></div>
+    <section class="painel solto entrar">
+      <form id="form-entrar">
+        <label>Login <input id="login" name="login" autocomplete="username" required autofocus></label>
+        <label>Senha <input id="senha" name="senha" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="primario">Entrar</button>
+      </form>
+      <p class="ajuda">O primeiro acesso usa o login <code>admin</code> e a senha definida em <code>ADMIN_PASSWORD</code>.</p>
+    </section>
+  </main>
+  <script type="module">
+    import { $, api, falha, ocupado } from "/comum/util.js";
+    $("form-entrar").addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const liberar = ocupado(evento.target.querySelector("button"), "Entrando...");
+      const resposta = await api("POST", "/auth/login", { login: $("login").value, senha: $("senha").value });
+      liberar();
+      if (!resposta.ok) {
+        falha(resposta);
+        return;
+      }
+      location.href = "/";
+    });
+  </script>
+</body>
+</html>

@@ -127,3 +127,7 @@ button.pequeno { min-height: 32px; padding: 4px 10px; font-size: 0.85rem; width:
 button.perigo { color: var(--erro-texto); border-color: var(--erro-texto); }
 .painel.solto { border-top: 1px solid var(--borda); border-radius: var(--raio); margin-top: 16px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.erro-campo { color: var(--erro-texto); font-size: 0.8rem; min-height: 1em; }
+.erro-campo:empty { display: none; }
+input.invalido { border-color: var(--erro-texto); }

@@ -17,7 +17,15 @@ APLICACOES = [
 
 def _iniciar(modulo: str, porta: int) -> subprocess.Popen:
     comando = [
-        sys.executable, "-m", "uvicorn", modulo, "--factory", "--host", HOST, "--port", str(porta),
+        sys.executable,
+        "-m",
+        "uvicorn",
+        modulo,
+        "--factory",
+        "--host",
+        HOST,
+        "--port",
+        str(porta),
     ]
     opcoes = {}
     if os.name == "nt":

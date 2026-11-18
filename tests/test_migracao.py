@@ -1,11 +1,10 @@
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
 from app.database import aplicar_migracoes, criar_motor
 from app.models import Agendamento, Barbeiro, Base, Cliente, Servico
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 ESQUEMA_ANTIGO = [
     "CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome VARCHAR(100) NOT NULL,"

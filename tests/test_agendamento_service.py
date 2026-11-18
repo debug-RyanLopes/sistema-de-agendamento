@@ -1,8 +1,6 @@
 from datetime import datetime, time
 
 import pytest
-from sqlalchemy.orm import Session
-
 from app.errors import (
     ConflitoHorarioError,
     ForaDaDisponibilidadeError,
@@ -12,6 +10,8 @@ from app.errors import (
 from app.models import Barbeiro, Disponibilidade, StatusAgendamento
 from app.schemas import AgendamentoIn
 from app.services import agendamento_service
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, DOMINGO, na_segunda
 
@@ -77,7 +77,7 @@ def test_intervalo_encostado_e_permitido(session: Session, cenario: Cenario):
 
 def test_agendamento_cancelado_nao_conta_para_conflito(session: Session, cenario: Cenario):
     primeiro, _ = agendamento_service.criar(session, _dados(cenario, na_segunda(10)), AGORA_FIXO)
-    agendamento_service.cancelar(session, primeiro.id)
+    agendamento_service.cancelar(session, primeiro.id, AGORA_FIXO)[0]
 
     segundo, _ = agendamento_service.criar(session, _dados(cenario, na_segunda(10)), AGORA_FIXO)
 
@@ -155,8 +155,8 @@ def test_cancelar_muda_status_e_e_idempotente(session: Session, cenario: Cenario
         session, _dados(cenario, na_segunda(10)), AGORA_FIXO
     )
 
-    primeiro = agendamento_service.cancelar(session, agendamento.id)
-    segundo = agendamento_service.cancelar(session, agendamento.id)
+    primeiro = agendamento_service.cancelar(session, agendamento.id, AGORA_FIXO)[0]
+    segundo = agendamento_service.cancelar(session, agendamento.id, AGORA_FIXO)[0]
 
     assert primeiro.status == StatusAgendamento.CANCELADO
     assert segundo.status == StatusAgendamento.CANCELADO
@@ -164,7 +164,7 @@ def test_cancelar_muda_status_e_e_idempotente(session: Session, cenario: Cenario
 
 def test_cancelar_inexistente_levanta_nao_encontrado(session: Session):
     with pytest.raises(RecursoNaoEncontradoError):
-        agendamento_service.cancelar(session, 999)
+        agendamento_service.cancelar(session, 999, AGORA_FIXO)[0]
 
 
 def test_listar_filtra_por_barbeiro_cliente_e_dia(session: Session, cenario: Cenario):

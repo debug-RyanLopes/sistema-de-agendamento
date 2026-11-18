@@ -32,3 +32,23 @@ class HorarioInvalidoError(DominioError):
 
 class DataForaDaJanelaError(DominioError):
     pass
+
+
+class TransicaoInvalidaError(DominioError):
+    """O agendamento não está num status que permita a operação pedida."""
+
+
+class LimiteExcedidoError(DominioError):
+    """O cliente já tem o máximo de agendamentos ativos permitido."""
+
+
+class EstoqueInsuficienteError(DominioError):
+    pass
+
+
+class NaoAutorizadoError(DominioError):
+    pass
+
+
+class AcessoNegadoError(DominioError):
+    pass

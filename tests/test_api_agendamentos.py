@@ -2,11 +2,11 @@ import logging
 from datetime import datetime
 
 import pytest
+from app.dependencies import get_notificador
+from app.services.notificacao_service import DadosConfirmacao, LogNotificador
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_notificador
-from app.services.notificacao_service import DadosConfirmacao, LogNotificador
 from tests.helpers import AGORA_FIXO, DOMINGO, NotificadorFalso, NotificadorQuebrado, na_segunda
 
 
@@ -118,7 +118,7 @@ def test_at009_falha_na_notificacao_nao_afeta_a_resposta(
         resposta = _agendar(client, cenario_api, na_segunda(10))
 
     assert resposta.status_code == 201
-    assert "falha ao enviar confirmação" in caplog.text
+    assert "falha ao enviar notificação" in caplog.text
 
 
 def test_log_notificador_registra_uma_linha_com_os_dados(caplog: pytest.LogCaptureFixture):
@@ -136,9 +136,12 @@ def test_log_notificador_registra_uma_linha_com_os_dados(caplog: pytest.LogCaptu
 
     assert len(caplog.records) == 1
     mensagem = caplog.records[0].getMessage()
-    for trecho in ("carlos@exemplo.com", "Carlos Silva", "João Barbeiro", "07/01/2030 10:00"):
+    for trecho in ("c***s@exemplo.com", "João Barbeiro", "Corte de cabelo", "07/01/2030 10:00"):
         assert trecho in mensagem
     assert "45.00" in mensagem
+    # Dados pessoais não vão para o log (LGPD): nem o e-mail completo nem o nome do cliente.
+    assert "carlos@exemplo.com" not in mensagem
+    assert "Carlos Silva" not in mensagem
 
 
 def test_lista_filtra_e_obtem_agendamento(client: TestClient, cenario_api: dict[str, int]):

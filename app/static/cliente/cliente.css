@@ -26,3 +26,22 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .cancelar-codigo { margin-top: 16px; }
 .cancelar-codigo summary { cursor: pointer; color: var(--texto-suave); }
 .cancelar-codigo form { margin-top: 12px; }
+
+.lista-meus { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.lista-meus li { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px 12px; }
+.lista-meus .codigo-pequeno { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; color: var(--texto-suave); }
+.remarcar { margin-top: 16px; border-top: 1px dashed var(--borda); padding-top: 12px; }
+.remarcar h3 { margin: 0 0 8px; font-size: 1rem; }
+.botao-link { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 10px; border: 1px solid var(--borda);
+  border-radius: var(--raio); background: var(--superficie); color: var(--texto); text-decoration: none; }
+.barbeiro.qualquer { border-style: dashed; }
+
+.servicos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.servico-opcao { display: flex; align-items: center; gap: 10px; border: 1px solid var(--borda); border-radius: var(--raio);
+  padding: 8px 10px; font-size: 0.95rem; color: var(--texto); cursor: pointer; }
+.servico-opcao:has(input:checked) { border-color: var(--destaque); background: var(--sucesso-fundo); }
+.servico-opcao span { display: grid; }
+.servico-opcao small { color: var(--texto-suave); }
+.resumo-servicos { font-weight: 600; color: var(--texto); }
+.horarios button { min-width: 112px; }

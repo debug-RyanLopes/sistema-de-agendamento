@@ -3,14 +3,14 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
 from app.database import criar_motor
 from app.models import Barbeiro, Servico
 from app.schemas import AgendamentoIn
 from app.services import agendamento_service, barbeiro_service
 from app.tempo import agora_local
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
 from tests.conftest import Cenario
 from tests.helpers import AGORA_FIXO, na_segunda
 from tests.test_migracao import _criar_banco_antigo, _migrar
@@ -56,11 +56,11 @@ def test_editar_mantendo_o_proprio_email_e_permitido(client: TestClient):
     assert resposta.json()["nome"] == "Ana Maria"
 
 
-def test_barbeiros_podem_repetir_email(client: TestClient):
+def test_barbeiros_nao_podem_repetir_email(client: TestClient):
     barbeiro = {"nome": "João Barbeiro", "email": "joao@barbearia.com"}
 
     assert client.post("/barbeiros", json=barbeiro).status_code == 201
-    assert client.post("/barbeiros", json=barbeiro).status_code == 201
+    assert client.post("/barbeiros", json={**barbeiro, "nome": "Outro"}).status_code == 409
 
 
 def test_indice_unico_e_criado_no_banco_migrado(tmp_path: Path):
@@ -211,7 +211,7 @@ def test_impacto_lista_futuros_soma_valor_e_aponta_o_proximo(session: Session, c
 def test_impacto_ignora_cancelados(session: Session, cenario: Cenario):
     _agendar(session, cenario, na_segunda(10))
     cancelado = agendamento_service.listar(session)[0]
-    agendamento_service.cancelar(session, cancelado.id)
+    agendamento_service.cancelar(session, cancelado.id, AGORA_FIXO)[0]
 
     impacto = barbeiro_service.impacto_desativacao(session, cenario.barbeiro.id, AGORA_FIXO)
 
@@ -249,9 +249,7 @@ def test_impacto_sem_data_de_cadastro_nao_inventa_tempo(session: Session, cenari
     assert impacto.cadastrado_em is None
 
 
-def test_impacto_nao_considera_agendamentos_de_outro_barbeiro(
-    session: Session, cenario: Cenario
-):
+def test_impacto_nao_considera_agendamentos_de_outro_barbeiro(session: Session, cenario: Cenario):
     _agendar(session, cenario, na_segunda(10))
     outro = Barbeiro(nome="Pedro Navalha", email="pedro@barbearia.com")
     session.add(outro)
